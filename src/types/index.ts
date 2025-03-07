@@ -3,6 +3,7 @@ export interface RefillStation {
   id: string;
   name: string;
   description: string;
+  landmark?: string;
   status: 'verified' | 'unverified' | 'reported';
   latitude: number;
   longitude: number;

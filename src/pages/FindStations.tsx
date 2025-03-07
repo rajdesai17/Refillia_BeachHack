@@ -1,51 +1,17 @@
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
-import { MapPin, Navigation, MessageCircle, ThumbsUp, ThumbsDown } from "lucide-react";
+import { MapPin, Navigation, MessageCircle, ThumbsUp, ThumbsDown, Search } from "lucide-react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { useToast } from "@/hooks/use-toast";
 import { RefillStation } from "@/types";
-
-// Sample data for demo purposes
-const sampleStations: RefillStation[] = [
-  {
-    id: "1",
-    name: "Central Park Fountain",
-    description: "Public drinking fountain located near the central playground.",
-    status: "verified",
-    latitude: 20.5937,
-    longitude: 78.9629,
-    addedBy: "user123",
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: "2",
-    name: "City Hall Water Station",
-    description: "Clean drinking water available during office hours.",
-    status: "verified",
-    latitude: 20.7,
-    longitude: 79.1,
-    addedBy: "user456",
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: "3",
-    name: "Railway Station Dispenser",
-    description: "Water dispenser located at platform 1.",
-    status: "unverified",
-    latitude: 20.4,
-    longitude: 78.8,
-    addedBy: "user789",
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-];
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
 
 // Custom marker icon
 const customIcon = new L.Icon({
@@ -55,43 +21,48 @@ const customIcon = new L.Icon({
   popupAnchor: [0, -35],
 });
 
+// Custom user location icon
+const userIcon = new L.Icon({
+  iconUrl: "https://cdn-icons-png.flaticon.com/512/3710/3710297.png",
+  iconSize: [25, 25],
+  iconAnchor: [12, 25],
+});
+
 const FindStations = () => {
-  const [stations, setStations] = useState<RefillStation[]>(sampleStations);
-  const [isLoading, setIsLoading] = useState(false);
-  const [selectedStation, setSelectedStation] = useState<RefillStation | null>(null);
   const [userPosition, setUserPosition] = useState<[number, number] | null>(null);
+  const [selectedStation, setSelectedStation] = useState<RefillStation | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
   const { toast } = useToast();
   
-  // In a real app, this would fetch from Supabase
-  useEffect(() => {
-    const fetchStations = async () => {
-      setIsLoading(true);
-      try {
-        // This would be a Supabase query
-        // const { data, error } = await supabase.from('refill_stations').select('*');
-        // if (error) throw error;
-        // setStations(data);
-        
-        // For now, we just simulate loading
-        setTimeout(() => {
-          setStations(sampleStations);
-          setIsLoading(false);
-        }, 1000);
-      } catch (error) {
-        console.error("Error fetching stations:", error);
-        toast({
-          title: "Error",
-          description: "Failed to load refill stations. Please try again.",
-          variant: "destructive",
-        });
-        setIsLoading(false);
-      }
-    };
+  // Fetch stations from Supabase
+  const fetchStations = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('refill_stations')
+      .select('*');
+    
+    if (error) throw error;
+    
+    // Convert from snake_case to camelCase
+    return (data || []).map(station => ({
+      id: station.id,
+      name: station.name,
+      description: station.description,
+      landmark: station.landmark,
+      status: station.status as 'verified' | 'unverified' | 'reported',
+      latitude: parseFloat(station.latitude),
+      longitude: parseFloat(station.longitude),
+      addedBy: station.added_by,
+      createdAt: station.created_at,
+      updatedAt: station.updated_at
+    }));
+  }, []);
+  
+  const { data: stations = [], isLoading, error } = useQuery({
+    queryKey: ['refillStations'],
+    queryFn: fetchStations
+  });
 
-    fetchStations();
-  }, [toast]);
-
-  // Get user's location if they allow it
+  // Get user's location
   useEffect(() => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -109,6 +80,14 @@ const FindStations = () => {
     }
   }, [toast]);
 
+  // Filter stations based on search query
+  const filteredStations = stations.filter(station => 
+    searchQuery === "" || 
+    station.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    station.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (station.landmark && station.landmark.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
+
   const handleGetDirections = (latitude: number, longitude: number) => {
     window.open(
       `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`,
@@ -116,12 +95,42 @@ const FindStations = () => {
     );
   };
 
-  const handleFeedback = (stationId: string, isPositive: boolean) => {
-    toast({
-      title: "Thank you for your feedback!",
-      description: `You ${isPositive ? "liked" : "disliked"} this refill station.`,
-    });
-    // In a real app, this would submit to Supabase
+  const handleFeedback = async (stationId: string, isPositive: boolean) => {
+    try {
+      // Check if user is authenticated
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        toast({
+          title: "Authentication Required",
+          description: "Please sign in to provide feedback.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Submit feedback to Supabase
+      const { error } = await supabase.from('feedback').insert([{
+        station_id: stationId,
+        user_id: user.id,
+        rating: isPositive ? 5 : 1,
+        comment: isPositive ? "Helpful" : "Issue reported"
+      }]);
+
+      if (error) throw error;
+
+      toast({
+        title: "Thank you for your feedback!",
+        description: `You ${isPositive ? "liked" : "reported an issue with"} this refill station.`,
+      });
+    } catch (error) {
+      console.error("Error submitting feedback:", error);
+      toast({
+        title: "Error",
+        description: "Failed to submit feedback. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   // Component to fly to user's location
@@ -137,18 +146,66 @@ const FindStations = () => {
     return null;
   };
 
+  // Handle search submission
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (searchQuery.trim() === "") return;
+    
+    const foundStation = stations.find(station => 
+      station.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (station.landmark && station.landmark.toLowerCase().includes(searchQuery.toLowerCase()))
+    );
+    
+    if (foundStation) {
+      setSelectedStation(foundStation);
+      // This will trigger the map to fly to the station in MapContainer
+    } else {
+      toast({
+        title: "No results found",
+        description: `Could not find any stations matching "${searchQuery}"`,
+      });
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
       <main className="flex-grow pt-16">
         <div className="container mx-auto px-4 py-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-6">Find Refill Stations</h1>
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
+            <h1 className="text-3xl font-bold text-gray-900 mb-4 md:mb-0">Find Refill Stations</h1>
+            
+            <form onSubmit={handleSearch} className="w-full md:w-auto">
+              <div className="relative">
+                <Input
+                  type="text"
+                  placeholder="Search by name or landmark..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pr-10 w-full md:w-64"
+                />
+                <Button 
+                  type="submit" 
+                  size="sm" 
+                  variant="ghost" 
+                  className="absolute right-0 top-0 h-full"
+                >
+                  <Search className="h-4 w-4" />
+                </Button>
+              </div>
+            </form>
+          </div>
           
           <div className="bg-white rounded-lg shadow-md overflow-hidden">
             <div className="h-[70vh] relative">
               {isLoading ? (
                 <div className="h-full flex items-center justify-center bg-gray-50">
                   <div className="text-refillia-blue animate-pulse">Loading map...</div>
+                </div>
+              ) : error ? (
+                <div className="h-full flex items-center justify-center bg-gray-50">
+                  <div className="text-red-500">Error loading stations. Please try again.</div>
                 </div>
               ) : (
                 <MapContainer
@@ -161,9 +218,20 @@ const FindStations = () => {
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                   />
                   
-                  {userPosition && <FlyToUserLocation />}
+                  {userPosition && (
+                    <>
+                      <FlyToUserLocation />
+                      <Marker position={userPosition} icon={userIcon}>
+                        <Popup>
+                          <div className="p-1">
+                            <h3 className="font-semibold text-gray-900">Your Location</h3>
+                          </div>
+                        </Popup>
+                      </Marker>
+                    </>
+                  )}
 
-                  {stations.map((station) => (
+                  {filteredStations.map((station) => (
                     <Marker
                       key={station.id}
                       position={[station.latitude, station.longitude]}
@@ -176,6 +244,11 @@ const FindStations = () => {
                         <div className="p-1">
                           <h3 className="font-semibold text-gray-900">{station.name}</h3>
                           <p className="text-sm text-gray-600 mb-2">{station.description}</p>
+                          {station.landmark && (
+                            <p className="text-xs text-gray-500 mb-2">
+                              <strong>Landmark:</strong> {station.landmark}
+                            </p>
+                          )}
                           <div className="flex items-center mb-2">
                             <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs ${
                               station.status === 'verified' 
@@ -221,6 +294,14 @@ const FindStations = () => {
                       </Popup>
                     </Marker>
                   ))}
+
+                  {/* Component to fly to selected station from search */}
+                  {selectedStation && (
+                    <FlyToSelectedStation 
+                      station={selectedStation} 
+                      setSelectedStation={setSelectedStation} 
+                    />
+                  )}
                 </MapContainer>
               )}
             </div>
@@ -256,6 +337,32 @@ const FindStations = () => {
       <Footer />
     </div>
   );
+};
+
+// Component to fly to selected station from search
+const FlyToSelectedStation = ({ 
+  station, 
+  setSelectedStation 
+}: { 
+  station: RefillStation, 
+  setSelectedStation: (station: RefillStation | null) => void 
+}) => {
+  const map = useMap();
+  
+  useEffect(() => {
+    if (station) {
+      map.flyTo([station.latitude, station.longitude], 16);
+      
+      // Create a timeout to clear the selection after the map has flown to it
+      const timeout = setTimeout(() => {
+        setSelectedStation(null);
+      }, 1000);
+      
+      return () => clearTimeout(timeout);
+    }
+  }, [map, station, setSelectedStation]);
+  
+  return null;
 };
 
 export default FindStations;

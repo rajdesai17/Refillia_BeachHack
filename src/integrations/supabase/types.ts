@@ -9,7 +9,110 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      feedback: {
+        Row: {
+          comment: string | null
+          created_at: string | null
+          id: string
+          rating: number
+          station_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          comment?: string | null
+          created_at?: string | null
+          id?: string
+          rating: number
+          station_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          comment?: string | null
+          created_at?: string | null
+          id?: string
+          rating?: number
+          station_id?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feedback_station_id_fkey"
+            columns: ["station_id"]
+            isOneToOne: false
+            referencedRelation: "refill_stations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      refill_stations: {
+        Row: {
+          added_by: string | null
+          created_at: string | null
+          description: string
+          id: string
+          landmark: string | null
+          latitude: number
+          longitude: number
+          name: string
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          added_by?: string | null
+          created_at?: string | null
+          description: string
+          id?: string
+          landmark?: string | null
+          latitude: number
+          longitude: number
+          name: string
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          added_by?: string | null
+          created_at?: string | null
+          description?: string
+          id?: string
+          landmark?: string | null
+          latitude?: number
+          longitude?: number
+          name?: string
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      user_profiles: {
+        Row: {
+          created_at: string | null
+          email: string | null
+          feedback_given: number | null
+          id: string
+          points: number | null
+          stations_added: number | null
+          username: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          email?: string | null
+          feedback_given?: number | null
+          id: string
+          points?: number | null
+          stations_added?: number | null
+          username?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          email?: string | null
+          feedback_given?: number | null
+          id?: string
+          points?: number | null
+          stations_added?: number | null
+          username?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

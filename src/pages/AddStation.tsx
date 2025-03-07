@@ -1,5 +1,5 @@
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
 import { MapPin, FileText, AlertTriangle } from "lucide-react";
 import L from "leaflet";
@@ -11,6 +11,8 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import { supabase } from "@/integrations/supabase/client";
+import { useNavigate } from "react-router-dom";
 
 // Custom marker icon
 const customIcon = new L.Icon({
@@ -23,7 +25,9 @@ const customIcon = new L.Icon({
 const AddStation = () => {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [landmark, setLandmark] = useState("");
   const [position, setPosition] = useState<[number, number] | null>(null);
+  const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formErrors, setFormErrors] = useState({
     name: "",
@@ -32,6 +36,34 @@ const AddStation = () => {
   });
   const mapRef = useRef<L.Map | null>(null);
   const { toast } = useToast();
+  const navigate = useNavigate();
+
+  // Get user's location when component mounts
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const userPos: [number, number] = [
+            position.coords.latitude,
+            position.coords.longitude,
+          ];
+          setUserLocation(userPos);
+          
+          // If map is loaded, fly to user location
+          if (mapRef.current) {
+            mapRef.current.flyTo(userPos, 15);
+          }
+        },
+        (error) => {
+          console.error("Error getting location:", error);
+          toast({
+            title: "Location access denied",
+            description: "Using default location in India.",
+          });
+        }
+      );
+    }
+  }, [toast]);
 
   const validateForm = () => {
     let isValid = true;
@@ -75,18 +107,31 @@ const AddStation = () => {
     setIsSubmitting(true);
 
     try {
-      // In a real app, this would submit to Supabase
-      // const { data, error } = await supabase.from('refill_stations').insert([{
-      //   name,
-      //   description,
-      //   latitude: position[0],
-      //   longitude: position[1],
-      //   status: 'unverified',
-      //   addedBy: user.id, // from auth
-      // }]);
+      // Check if user is authenticated
+      const { data: { user } } = await supabase.auth.getUser();
       
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      if (!user) {
+        toast({
+          title: "Authentication Required",
+          description: "Please sign in to add a refill station.",
+          variant: "destructive",
+        });
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Submit to Supabase
+      const { data, error } = await supabase.from('refill_stations').insert([{
+        name,
+        description,
+        landmark: landmark || null,
+        latitude: position![0],
+        longitude: position![1],
+        status: 'unverified',
+        added_by: user.id,
+      }]);
+
+      if (error) throw error;
 
       toast({
         title: "Success!",
@@ -96,8 +141,14 @@ const AddStation = () => {
       // Reset form
       setName("");
       setDescription("");
+      setLandmark("");
       setPosition(null);
       setFormErrors({ name: "", description: "", position: "" });
+      
+      // Navigate to find stations page
+      setTimeout(() => {
+        navigate('/find');
+      }, 2000);
     } catch (error) {
       console.error("Error submitting station:", error);
       toast({
@@ -110,8 +161,8 @@ const AddStation = () => {
     }
   };
 
-  // Custom map click handler component
-  const MapClickHandler = () => {
+  // Custom map components
+  const LocationMarker = () => {
     useMapEvents({
       click: (e) => {
         setPosition([e.latlng.lat, e.latlng.lng]);
@@ -120,6 +171,33 @@ const AddStation = () => {
 
     return position ? (
       <Marker position={position} icon={customIcon} />
+    ) : null;
+  };
+
+  const UserLocationMarker = () => {
+    const map = useMapEvents({
+      load: () => {
+        if (userLocation) {
+          map.flyTo(userLocation, 15);
+        }
+      }
+    });
+
+    useEffect(() => {
+      if (userLocation && mapRef.current) {
+        mapRef.current.flyTo(userLocation, 15);
+      }
+    }, [userLocation]);
+
+    return userLocation ? (
+      <Marker 
+        position={userLocation} 
+        icon={new L.Icon({
+          iconUrl: "https://cdn-icons-png.flaticon.com/512/3710/3710297.png",
+          iconSize: [25, 25],
+          iconAnchor: [12, 25],
+        })}
+      />
     ) : null;
   };
 
@@ -135,8 +213,8 @@ const AddStation = () => {
             <div className="bg-white rounded-lg shadow-md overflow-hidden">
               <div className="h-[60vh]">
                 <MapContainer
-                  center={[20.5937, 78.9629]} // Center of India
-                  zoom={5}
+                  center={userLocation || [20.5937, 78.9629]}
+                  zoom={userLocation ? 15 : 5}
                   className="h-full w-full"
                   ref={mapRef}
                 >
@@ -144,14 +222,15 @@ const AddStation = () => {
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                   />
-                  <MapClickHandler />
+                  <LocationMarker />
+                  <UserLocationMarker />
                 </MapContainer>
               </div>
               <div className="p-4 bg-refillia-lightBlue">
                 <div className="flex items-start gap-3">
                   <MapPin className="h-5 w-5 text-refillia-blue mt-0.5 flex-shrink-0" />
                   <p className="text-sm text-gray-700">
-                    Click on the map to select the exact location of the refill station. Try to be as accurate as possible.
+                    Click on the map to select the exact location of the refill station. Your current location is shown with a blue marker.
                   </p>
                 </div>
               </div>
@@ -188,6 +267,16 @@ const AddStation = () => {
                     {formErrors.description && (
                       <p className="text-sm text-red-500 mt-1">{formErrors.description}</p>
                     )}
+                  </div>
+
+                  <div>
+                    <Label htmlFor="landmark">Landmark (Optional)</Label>
+                    <Input
+                      id="landmark"
+                      placeholder="E.g., Near the main entrance"
+                      value={landmark}
+                      onChange={(e) => setLandmark(e.target.value)}
+                    />
                   </div>
 
                   <div>
