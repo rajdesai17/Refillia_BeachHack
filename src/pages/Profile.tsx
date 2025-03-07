@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { User, MapPin, MessageSquare, Award, Edit, LogOut, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,81 +8,70 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { UserProfile, RefillStation, Feedback } from "@/types";
-
-// Sample user data for demo purposes
-const sampleUser: UserProfile = {
-  id: "user123",
-  username: "waterwarrior",
-  email: "user@example.com",
-  points: 150,
-  stationsAdded: 3,
-  feedbackGiven: 5,
-  createdAt: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(), // 90 days ago
-};
-
-// Sample stations added by the user
-const sampleUserStations: RefillStation[] = [
-  {
-    id: "1",
-    name: "Central Park Fountain",
-    description: "Public drinking fountain located near the central playground.",
-    status: "verified",
-    latitude: 20.5937,
-    longitude: 78.9629,
-    addedBy: "user123",
-    createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-    updatedAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: "2",
-    name: "City Hall Water Station",
-    description: "Clean drinking water available during office hours.",
-    status: "verified",
-    latitude: 20.7,
-    longitude: 79.1,
-    addedBy: "user123",
-    createdAt: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString(),
-    updatedAt: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: "3",
-    name: "Railway Station Dispenser",
-    description: "Water dispenser located at platform 1.",
-    status: "unverified",
-    latitude: 20.4,
-    longitude: 78.8,
-    addedBy: "user123",
-    createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-    updatedAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-];
-
-// Sample feedback given by the user
-const sampleUserFeedback: Feedback[] = [
-  {
-    id: "1",
-    stationId: "5",
-    userId: "user123",
-    rating: 5,
-    comment: "Great water quality and easy to find!",
-    createdAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: "2",
-    stationId: "6",
-    userId: "user123",
-    rating: 4,
-    comment: "Good location but sometimes it's crowded.",
-    createdAt: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-];
+import { RefillStation, Feedback } from "@/types";
+import { useAuth } from "@/contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
 
 const Profile = () => {
-  const [user] = useState<UserProfile>(sampleUser);
-  const [userStations] = useState<RefillStation[]>(sampleUserStations);
-  const [userFeedback] = useState<Feedback[]>(sampleUserFeedback);
+  const { profile, signOut } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
+
+  // Fetch user's stations
+  const { data: userStations = [] } = useQuery({
+    queryKey: ['userStations', profile?.id],
+    queryFn: async () => {
+      if (!profile?.id) return [];
+      
+      const { data, error } = await supabase
+        .from('refill_stations')
+        .select('*')
+        .eq('added_by', profile.id);
+        
+      if (error) throw error;
+      
+      return (data || []).map(station => ({
+        id: station.id,
+        name: station.name,
+        description: station.description,
+        landmark: station.landmark,
+        status: station.status as 'verified' | 'unverified' | 'reported',
+        latitude: parseFloat(station.latitude.toString()),
+        longitude: parseFloat(station.longitude.toString()),
+        addedBy: station.added_by,
+        createdAt: station.created_at,
+        updatedAt: station.updated_at
+      }));
+    },
+    enabled: !!profile?.id
+  });
+  
+  // Fetch user's feedback
+  const { data: userFeedback = [] } = useQuery({
+    queryKey: ['userFeedback', profile?.id],
+    queryFn: async () => {
+      if (!profile?.id) return [];
+      
+      const { data, error } = await supabase
+        .from('feedback')
+        .select('*')
+        .eq('user_id', profile.id);
+        
+      if (error) throw error;
+      
+      return (data || []).map(feedback => ({
+        id: feedback.id,
+        stationId: feedback.station_id,
+        userId: feedback.user_id,
+        rating: feedback.rating,
+        comment: feedback.comment || "",
+        createdAt: feedback.created_at
+      }));
+    },
+    enabled: !!profile?.id
+  });
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -94,10 +82,38 @@ const Profile = () => {
     });
   };
 
-  const nextLevel = Math.ceil(user.points / 100) * 100;
-  const currentLevelStart = Math.floor(user.points / 100) * 100;
-  const progressPercentage = ((user.points - currentLevelStart) / (nextLevel - currentLevelStart)) * 100;
-  const userLevel = Math.floor(user.points / 100) + 1;
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      toast({
+        title: "Signed out successfully",
+        description: "You have been signed out of your account.",
+      });
+      navigate("/");
+    } catch (error: any) {
+      toast({
+        title: "Error signing out",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleEditProfile = () => {
+    toast({
+      title: "Coming Soon",
+      description: "Profile editing will be available in a future update.",
+    });
+  };
+
+  if (!profile) {
+    return null; // This shouldn't render as ProtectedRoute will redirect
+  }
+
+  const nextLevel = Math.ceil((profile?.points || 0) / 100) * 100;
+  const currentLevelStart = Math.floor((profile?.points || 0) / 100) * 100;
+  const progressPercentage = ((profile?.points || 0) - currentLevelStart) / (nextLevel - currentLevelStart) * 100;
+  const userLevel = Math.floor((profile?.points || 0) / 100) + 1;
 
   // Get level title based on points
   const getLevelTitle = (level: number) => {
@@ -116,13 +132,6 @@ const Profile = () => {
     return titles[4];
   };
 
-  const handleEditProfile = () => {
-    toast({
-      title: "Coming Soon",
-      description: "Profile editing will be available in a future update.",
-    });
-  };
-
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
@@ -138,15 +147,15 @@ const Profile = () => {
                       <User className="h-16 w-16 text-refillia-blue" />
                     </div>
                   </div>
-                  <CardTitle>{user.username}</CardTitle>
-                  <CardDescription>{user.email}</CardDescription>
+                  <CardTitle>{profile.username}</CardTitle>
+                  <CardDescription>{profile.email}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
                     <div>
                       <div className="flex justify-between items-center mb-1">
                         <span className="text-sm font-medium">Level {userLevel}: {getLevelTitle(userLevel)}</span>
-                        <span className="text-xs text-muted-foreground">{user.points}/{nextLevel} points</span>
+                        <span className="text-xs text-muted-foreground">{profile.points}/{nextLevel} points</span>
                       </div>
                       <Progress value={progressPercentage} className="h-2" />
                     </div>
@@ -159,7 +168,7 @@ const Profile = () => {
                           <MapPin className="h-4 w-4 text-refillia-blue mr-2" />
                           <span className="text-sm">Stations Added</span>
                         </div>
-                        <span className="font-medium">{user.stationsAdded}</span>
+                        <span className="font-medium">{profile.stationsAdded}</span>
                       </div>
                       
                       <div className="flex items-center justify-between">
@@ -167,7 +176,7 @@ const Profile = () => {
                           <MessageSquare className="h-4 w-4 text-refillia-green mr-2" />
                           <span className="text-sm">Feedback Given</span>
                         </div>
-                        <span className="font-medium">{user.feedbackGiven}</span>
+                        <span className="font-medium">{profile.feedbackGiven}</span>
                       </div>
                       
                       <div className="flex items-center justify-between">
@@ -175,7 +184,7 @@ const Profile = () => {
                           <Award className="h-4 w-4 text-refillia-orange mr-2" />
                           <span className="text-sm">Total Points</span>
                         </div>
-                        <span className="font-medium">{user.points}</span>
+                        <span className="font-medium">{profile.points}</span>
                       </div>
                     </div>
                     
@@ -193,6 +202,7 @@ const Profile = () => {
                       <Button 
                         variant="outline" 
                         className="w-full justify-start text-red-500 hover:text-red-600 hover:bg-red-50"
+                        onClick={handleSignOut}
                       >
                         <LogOut className="h-4 w-4 mr-2" />
                         Sign Out
@@ -217,7 +227,7 @@ const Profile = () => {
                         <p className="text-xs text-muted-foreground">Added your first refill station</p>
                       </div>
                     </div>
-                    {user.stationsAdded >= 3 && (
+                    {profile.stationsAdded >= 3 && (
                       <div className="flex items-center gap-3">
                         <div className="bg-green-50 p-2 rounded-full">
                           <MapPin className="h-5 w-5 text-refillia-green" />
@@ -228,7 +238,7 @@ const Profile = () => {
                         </div>
                       </div>
                     )}
-                    {user.points >= 100 && (
+                    {profile.points >= 100 && (
                       <div className="flex items-center gap-3">
                         <div className="bg-orange-50 p-2 rounded-full">
                           <Award className="h-5 w-5 text-refillia-orange" />
@@ -371,13 +381,13 @@ const Profile = () => {
                           <div className="space-y-4">
                             <div>
                               <h4 className="text-sm font-medium mb-2">Member Since</h4>
-                              <p>{formatDate(user.createdAt)}</p>
+                              <p>{formatDate(profile.createdAt)}</p>
                             </div>
                             <Separator />
                             <div>
                               <h4 className="text-sm font-medium mb-2">Total Water Saved</h4>
                               <p className="text-2xl font-bold text-refillia-blue">
-                                ~{user.stationsAdded * 50} liters
+                                ~{profile.stationsAdded * 50} liters
                               </p>
                               <p className="text-xs text-muted-foreground mt-1">
                                 Based on estimated usage of your added stations
@@ -387,7 +397,7 @@ const Profile = () => {
                             <div>
                               <h4 className="text-sm font-medium mb-2">Plastic Bottles Saved</h4>
                               <p className="text-2xl font-bold text-refillia-green">
-                                ~{user.stationsAdded * 100}
+                                ~{profile.stationsAdded * 100}
                               </p>
                               <p className="text-xs text-muted-foreground mt-1">
                                 Estimated based on average station usage
@@ -427,12 +437,12 @@ const Profile = () => {
                                 <Award className="h-6 w-6 text-refillia-orange" />
                                 <div>
                                   <p className="font-medium">
-                                    {user.points < 200 ? "Hydration Helper" : 
-                                     user.points < 300 ? "Refill Ranger" :
-                                     user.points < 400 ? "Water Warrior" : "Hydration Hero"}
+                                    {profile.points < 200 ? "Hydration Helper" : 
+                                     profile.points < 300 ? "Refill Ranger" :
+                                     profile.points < 400 ? "Water Warrior" : "Hydration Hero"}
                                   </p>
                                   <p className="text-sm text-muted-foreground">
-                                    {nextLevel - user.points} points needed
+                                    {nextLevel - profile.points} points needed
                                   </p>
                                 </div>
                               </div>

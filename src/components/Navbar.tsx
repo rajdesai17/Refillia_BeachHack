@@ -1,13 +1,17 @@
 
 import { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
-import { Menu, X, Droplets } from "lucide-react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Menu, X, Droplets, LogOut, LogIn, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "@/hooks/use-toast";
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, profile, signOut } = useAuth();
 
   const isActive = (path: string) => {
     return location.pathname === path;
@@ -15,6 +19,23 @@ const Navbar = () => {
 
   const toggleMenu = () => {
     setIsOpen(!isOpen);
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      toast({
+        title: "Signed out successfully",
+        description: "You have been signed out of your account.",
+      });
+      navigate("/");
+    } catch (error: any) {
+      toast({
+        title: "Error signing out",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -36,12 +57,31 @@ const Navbar = () => {
           <NavLink to="/add" isActive={isActive("/add")}>
             Add Station
           </NavLink>
-          <NavLink to="/profile" isActive={isActive("/profile")}>
-            Profile
-          </NavLink>
-          <Button variant="default" className="bg-refillia-blue hover:bg-refillia-darkBlue">
-            Get Started
-          </Button>
+          
+          {user ? (
+            <>
+              <NavLink to="/profile" isActive={isActive("/profile")}>
+                Profile
+              </NavLink>
+              <Button 
+                variant="outline" 
+                className="flex items-center gap-2 border-red-500 text-red-500 hover:bg-red-50"
+                onClick={handleSignOut}
+              >
+                <LogOut size={18} />
+                Sign Out
+              </Button>
+            </>
+          ) : (
+            <Button 
+              variant="default"
+              className="bg-refillia-blue hover:bg-refillia-darkBlue flex items-center gap-2"
+              onClick={() => navigate("/auth")}
+            >
+              <LogIn size={18} />
+              Sign In
+            </Button>
+          )}
         </div>
 
         {/* Mobile Menu Toggle */}
@@ -67,15 +107,37 @@ const Navbar = () => {
             <NavLink to="/add" isActive={isActive("/add")} onClick={toggleMenu}>
               Add Station
             </NavLink>
-            <NavLink to="/profile" isActive={isActive("/profile")} onClick={toggleMenu}>
-              Profile
-            </NavLink>
-            <Button 
-              variant="default" 
-              className="bg-refillia-blue hover:bg-refillia-darkBlue w-full"
-            >
-              Get Started
-            </Button>
+            
+            {user ? (
+              <>
+                <NavLink to="/profile" isActive={isActive("/profile")} onClick={toggleMenu}>
+                  Profile
+                </NavLink>
+                <Button 
+                  variant="outline" 
+                  className="flex items-center justify-center gap-2 border-red-500 text-red-500 hover:bg-red-50 w-full"
+                  onClick={() => {
+                    handleSignOut();
+                    toggleMenu();
+                  }}
+                >
+                  <LogOut size={18} />
+                  Sign Out
+                </Button>
+              </>
+            ) : (
+              <Button 
+                variant="default" 
+                className="bg-refillia-blue hover:bg-refillia-darkBlue w-full flex items-center justify-center gap-2"
+                onClick={() => {
+                  navigate("/auth");
+                  toggleMenu();
+                }}
+              >
+                <LogIn size={18} />
+                Sign In
+              </Button>
+            )}
           </div>
         </div>
       )}
