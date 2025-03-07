@@ -42,7 +42,6 @@ const FindStations = () => {
     
     if (error) throw error;
     
-    // Convert from snake_case to camelCase and ensure correct types
     return (data || []).map(station => ({
       id: station.id,
       name: station.name,

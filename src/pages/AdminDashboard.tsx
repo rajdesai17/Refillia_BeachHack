@@ -37,7 +37,11 @@ const AdminDashboard = () => {
       throw error;
     }
 
-    return data;
+    return data.map(station => ({
+      ...station,
+      username: station.user_profiles?.username || "Unknown",
+      userEmail: station.user_profiles?.email || "Unknown",
+    }));
   };
 
   // Fetch verified stations for reference
