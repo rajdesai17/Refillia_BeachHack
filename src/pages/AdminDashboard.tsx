@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Check, X, MapPin, Search } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { RefillStation } from "@/types";
 import { Button } from "@/components/ui/button";
@@ -23,12 +23,13 @@ const AdminDashboard = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [unverifiedRequests, setUnverifiedRequests] = useState([]);
+  const queryClient = useQueryClient();
 
   // Fetch all pending station requests
   const fetchPendingStations = async () => {
     const { data, error } = await supabase
       .from('refill_stations')
-      .select(`*, user_profiles:added_by(username, email)`)
+      .select('*')
       .eq('status', 'unverified')
       .order('created_at', { ascending: false });
 
@@ -37,10 +38,19 @@ const AdminDashboard = () => {
       throw error;
     }
 
-    return data.map(station => ({
-      ...station,
-      username: station.user_profiles?.username || "Unknown",
-      userEmail: station.user_profiles?.email || "Unknown",
+    return (data || []).map(station => ({
+      id: station.id,
+      name: station.name,
+      description: station.description,
+      landmark: station.landmark,
+      status: station.status as 'verified' | 'unverified' | 'reported',
+      latitude: parseFloat(station.latitude.toString()),
+      longitude: parseFloat(station.longitude.toString()),
+      added_by: station.added_by,
+      created_at: station.created_at,
+      updated_at: station.updated_at,
+      username: "Unknown", // Default value since we can't join with user_profiles
+      userEmail: "Unknown" // Default value since we can't join with user_profiles
     }));
   };
 
@@ -48,14 +58,14 @@ const AdminDashboard = () => {
   const fetchVerifiedStations = async () => {
     const { data, error } = await supabase
       .from('refill_stations')
-      .select(`
-        *,
-        user_profiles(username, email)
-      `)
+      .select('*')
       .eq('status', 'verified')
       .order('created_at', { ascending: false });
     
-    if (error) throw error;
+    if (error) {
+      console.error('Error fetching verified stations:', error);
+      throw error;
+    }
     
     return (data || []).map(station => ({
       id: station.id,
@@ -65,9 +75,9 @@ const AdminDashboard = () => {
       status: station.status as 'verified' | 'unverified' | 'reported',
       latitude: parseFloat(station.latitude.toString()),
       longitude: parseFloat(station.longitude.toString()),
-      addedBy: station.added_by,
-      userEmail: station.user_profiles.email,
-      username: station.user_profiles.username,
+      added_by: station.added_by,
+      username: "Unknown", // Default value since we can't join with user_profiles
+      userEmail: "Unknown", // Default value since we can't join with user_profiles
       createdAt: new Date(station.created_at).toLocaleString(),
       updatedAt: station.updated_at
     }));
@@ -135,6 +145,7 @@ const AdminDashboard = () => {
     setUpdatingId(stationId);
     
     try {
+      // Update the station status in Supabase
       const { error } = await supabase
         .from('refill_stations')
         .update({ 
@@ -143,16 +154,25 @@ const AdminDashboard = () => {
         })
         .eq('id', stationId);
       
-      if (error) throw error;
+      if (error) {
+        console.error(`Error updating station status:`, error);
+        throw error;
+      }
       
+      // Show success message
       toast({
         title: `Station ${newStatus}`,
         description: `The refill station has been ${newStatus} successfully.`,
       });
       
-      // Refetch both lists to update the UI
-      refetchPending();
-      refetchVerified();
+      // Manually refetch data to ensure UI is updated
+      await refetchPending();
+      await refetchVerified();
+      
+      // Force a reload of the verified stations in FindStations component
+      // by invalidating the cache for the 'verifiedRefillStations' query
+      queryClient.invalidateQueries({ queryKey: ['verifiedRefillStations'] });
+      
     } catch (error) {
       console.error(`Error ${newStatus} station:`, error);
       toast({
@@ -230,7 +250,7 @@ const AdminDashboard = () => {
                               <span className="text-xs text-gray-500">{station.userEmail}</span>
                             </div>
                           </TableCell>
-                          <TableCell>{station.createdAt}</TableCell>
+                          <TableCell>{station.created_at ? new Date(station.created_at).toLocaleString() : "-"}</TableCell>
                           <TableCell>
                             <Button 
                               variant="outline" 

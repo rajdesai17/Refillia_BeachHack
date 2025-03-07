@@ -12,12 +12,18 @@ import { RefillStation } from "@/types";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 
+// Fix for Leaflet marker icon
+import markerIcon from "leaflet/dist/images/marker-icon.png";
+import markerShadow from "leaflet/dist/images/marker-shadow.png";
+
 // Custom marker icon
-const customIcon = new L.Icon({
-  iconUrl: "https://cdn-icons-png.flaticon.com/512/3448/3448636.png",
-  iconSize: [35, 35],
-  iconAnchor: [17, 35],
-  popupAnchor: [0, -35],
+const customIcon = L.icon({
+  iconUrl: markerIcon,
+  shadowUrl: markerShadow,
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41]
 });
 
 // Custom user location icon
@@ -27,6 +33,9 @@ const userIcon = new L.Icon({
   iconAnchor: [12, 25],
 });
 
+// Default position (center of India)
+const defaultPosition: [number, number] = [20.5937, 78.9629];
+
 const FindStations = () => {
   const [userPosition, setUserPosition] = useState<[number, number] | null>(null);
   const [selectedStation, setSelectedStation] = useState<RefillStation | null>(null);
@@ -35,13 +44,18 @@ const FindStations = () => {
   
   // Fetch stations from Supabase - only verified ones
   const fetchStations = useCallback(async () => {
+    console.log("Fetching verified stations");
     const { data, error } = await supabase
       .from('refill_stations')
       .select('*')
       .eq('status', 'verified');
     
-    if (error) throw error;
+    if (error) {
+      console.error("Error fetching verified stations:", error);
+      throw error;
+    }
     
+    console.log("Verified stations:", data);
     return (data || []).map(station => ({
       id: station.id,
       name: station.name,
@@ -56,9 +70,16 @@ const FindStations = () => {
     }));
   }, []);
   
-  const { data: stations = [], isLoading, error } = useQuery({
+  const { 
+    data: stations = [], 
+    isLoading, 
+    error,
+    refetch: refetchStations
+  } = useQuery({
     queryKey: ['verifiedRefillStations'],
-    queryFn: fetchStations
+    queryFn: fetchStations,
+    refetchOnWindowFocus: true,
+    refetchInterval: 30000 // Refetch every 30 seconds
   });
 
   // Get user's location
@@ -208,7 +229,7 @@ const FindStations = () => {
                 </div>
               ) : (
                 <MapContainer
-                  center={userPosition || [20.5937, 78.9629]} // Center of India if no user location
+                  center={userPosition || defaultPosition}
                   zoom={13}
                   className="h-full w-full"
                 >
