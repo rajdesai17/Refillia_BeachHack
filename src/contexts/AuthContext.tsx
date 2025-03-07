@@ -3,12 +3,14 @@ import { createContext, useContext, useState, useEffect, ReactNode } from "react
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { UserProfile } from "@/types";
+import { toast } from "@/hooks/use-toast";
 
 interface AuthContextType {
   session: Session | null;
   user: User | null;
   profile: UserProfile | null;
   loading: boolean;
+  isAdmin: boolean;
   signOut: () => Promise<void>;
 }
 
@@ -19,6 +21,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     // Get initial session
@@ -27,6 +30,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUser(session?.user ?? null);
       if (session?.user) {
         fetchUserProfile(session.user.id);
+        checkAdminStatus(session.user.email);
       } else {
         setLoading(false);
       }
@@ -40,8 +44,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         
         if (session?.user) {
           fetchUserProfile(session.user.id);
+          checkAdminStatus(session.user.email);
         } else {
           setProfile(null);
+          setIsAdmin(false);
           setLoading(false);
         }
       }
@@ -51,6 +57,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       subscription.unsubscribe();
     };
   }, []);
+
+  const checkAdminStatus = (email: string | undefined) => {
+    // Check if the user is an admin
+    if (email === 'admin@gmail.com') {
+      setIsAdmin(true);
+    } else {
+      setIsAdmin(false);
+    }
+  };
 
   const fetchUserProfile = async (userId: string) => {
     try {
@@ -94,6 +109,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         user,
         profile,
         loading,
+        isAdmin,
         signOut
       }}
     >

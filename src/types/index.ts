@@ -4,10 +4,12 @@ export interface RefillStation {
   name: string;
   description: string;
   landmark?: string;
-  status: 'verified' | 'unverified' | 'reported';
+  status: 'verified' | 'unverified' | 'rejected' | 'reported';
   latitude: number;
   longitude: number;
   addedBy: string;
+  userEmail?: string;
+  username?: string;
   createdAt: string;
   updatedAt: string;
 }

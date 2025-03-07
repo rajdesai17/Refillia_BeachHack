@@ -12,6 +12,7 @@ import FindStations from "./pages/FindStations";
 import AddStation from "./pages/AddStation";
 import Profile from "./pages/Profile";
 import Auth from "./pages/Auth";
+import AdminDashboard from "./pages/AdminDashboard";
 
 const queryClient = new QueryClient();
 
@@ -31,6 +32,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Profile />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/admin" 
+              element={
+                <ProtectedRoute adminOnly>
+                  <AdminDashboard />
                 </ProtectedRoute>
               } 
             />

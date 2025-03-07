@@ -1,6 +1,6 @@
 
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Droplets, Mail, Lock, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,7 @@ import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import { useAuth } from "@/contexts/AuthContext";
 
 const Auth = () => {
   const [email, setEmail] = useState("");
@@ -18,6 +19,22 @@ const Auth = () => {
   const [username, setUsername] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+  const { user, isAdmin } = useAuth();
+  
+  // Get the redirect path from location state or default to profile
+  const from = (location.state as { from?: { pathname: string } })?.from?.pathname || "/profile";
+
+  useEffect(() => {
+    // If user is already authenticated, redirect them
+    if (user) {
+      if (isAdmin) {
+        navigate("/admin");
+      } else {
+        navigate(from);
+      }
+    }
+  }, [user, isAdmin, navigate, from]);
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,12 +83,20 @@ const Auth = () => {
 
       if (error) throw error;
 
-      toast({
-        title: "Signed in successfully!",
-        description: "Welcome back to Refillia.",
-      });
-
-      navigate("/profile");
+      // Check if the user is an admin
+      if (email === 'admin@gmail.com') {
+        toast({
+          title: "Admin signed in successfully!",
+          description: "Welcome to the admin dashboard.",
+        });
+        navigate("/admin");
+      } else {
+        toast({
+          title: "Signed in successfully!",
+          description: "Welcome back to Refillia.",
+        });
+        navigate(from);
+      }
     } catch (error: any) {
       toast({
         title: "Error signing in",

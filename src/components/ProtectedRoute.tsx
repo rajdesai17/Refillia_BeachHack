@@ -5,10 +5,11 @@ import { toast } from "@/hooks/use-toast";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
+  adminOnly?: boolean;
 }
 
-const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
-  const { user, loading } = useAuth();
+const ProtectedRoute = ({ children, adminOnly = false }: ProtectedRouteProps) => {
+  const { user, loading, isAdmin } = useAuth();
   const location = useLocation();
 
   // Show loading state while authentication is being checked
@@ -31,7 +32,18 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
     return <Navigate to="/auth" state={{ from: location }} replace />;
   }
 
-  // If authenticated, render the protected content
+  // If admin-only route and user is not an admin, redirect to home
+  if (adminOnly && !isAdmin) {
+    toast({
+      title: "Access denied",
+      description: "You don't have permission to access this page",
+      variant: "destructive",
+    });
+    
+    return <Navigate to="/" replace />;
+  }
+
+  // If authenticated and has proper permissions, render the protected content
   return <>{children}</>;
 };
 

@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from "react";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import { MapPin, Navigation, MessageCircle, ThumbsUp, ThumbsDown, Search } from "lucide-react";
@@ -33,11 +34,12 @@ const FindStations = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const { toast } = useToast();
   
-  // Fetch stations from Supabase
+  // Fetch stations from Supabase - only verified ones
   const fetchStations = useCallback(async () => {
     const { data, error } = await supabase
       .from('refill_stations')
-      .select('*');
+      .select('*')
+      .eq('status', 'verified');
     
     if (error) throw error;
     
@@ -57,7 +59,7 @@ const FindStations = () => {
   }, []);
   
   const { data: stations = [], isLoading, error } = useQuery({
-    queryKey: ['refillStations'],
+    queryKey: ['verifiedRefillStations'],
     queryFn: fetchStations
   });
 
@@ -249,14 +251,8 @@ const FindStations = () => {
                             </p>
                           )}
                           <div className="flex items-center mb-2">
-                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs ${
-                              station.status === 'verified' 
-                                ? 'bg-green-100 text-green-800' 
-                                : station.status === 'unverified'
-                                ? 'bg-yellow-100 text-yellow-800'
-                                : 'bg-red-100 text-red-800'
-                            }`}>
-                              {station.status.charAt(0).toUpperCase() + station.status.slice(1)}
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-800">
+                              Verified
                             </span>
                           </div>
                           <div className="flex flex-col gap-2">
@@ -311,7 +307,7 @@ const FindStations = () => {
               <MapPin className="h-10 w-10 text-refillia-blue mb-4" />
               <h3 className="text-xl font-semibold mb-2">Find Nearby Stations</h3>
               <p className="text-gray-600">
-                Click on the map markers to view details about each refill station, including directions.
+                Click on the map markers to view details about each verified refill station, including directions.
               </p>
             </div>
             
