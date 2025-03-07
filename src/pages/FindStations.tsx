@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from "react";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import { MapPin, Navigation, MessageCircle, ThumbsUp, ThumbsDown, Search } from "lucide-react";
@@ -42,15 +41,15 @@ const FindStations = () => {
     
     if (error) throw error;
     
-    // Convert from snake_case to camelCase
+    // Convert from snake_case to camelCase and ensure correct types
     return (data || []).map(station => ({
       id: station.id,
       name: station.name,
       description: station.description,
       landmark: station.landmark,
       status: station.status as 'verified' | 'unverified' | 'reported',
-      latitude: parseFloat(station.latitude),
-      longitude: parseFloat(station.longitude),
+      latitude: parseFloat(station.latitude.toString()),
+      longitude: parseFloat(station.longitude.toString()),
       addedBy: station.added_by,
       createdAt: station.created_at,
       updatedAt: station.updated_at
