@@ -75,7 +75,9 @@ const Profile = () => {
         username: station.user_profiles.username,
         userEmail: station.user_profiles.email,
         createdAt: station.created_at,
-        updatedAt: station.updated_at
+        updatedAt: station.updated_at,
+        addedBy: station.added_by,  // Make sure this maps the database field
+        opening_time: station.opening_time  // Add this line
       }));
     },
     enabled: !!profile?.id
@@ -354,12 +356,21 @@ const Profile = () => {
                                   >
                                     View on Map
                                   </Button>
-                                  <Button 
-                                    variant="outline" 
-                                    size="sm"
-                                  >
-                                    Edit
-                                  </Button>
+                                  {/* Only show edit button if:
+    1. Station is verified
+    2. Station was added by the current user
+    3. Station has opening_time (indicating it came from JoinUs form) */}
+{station.status === 'verified' && 
+ station.addedBy === profile?.id && 
+ station.opening_time && (
+  <Button 
+    variant="outline" 
+    size="sm"
+    onClick={() => navigate(`/edit-station/${station.id}`)}
+  >
+    Edit
+  </Button>
+)}
                                 </div>
                               </div>
                             </CardContent>

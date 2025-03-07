@@ -12,6 +12,8 @@ import AddStation from "./pages/AddStation";
 import Profile from "./pages/Profile";
 import Auth from "./pages/Auth";
 import AdminDashboard from "./pages/AdminDashboard";
+import JoinUs from "./pages/JoinUs"; // Import JoinUs page
+import EditStation from "./pages/EditStation"; // Import EditStation page
 
 const queryClient = new QueryClient();
 
@@ -26,6 +28,7 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/find" element={<FindStations />} />
             <Route path="/add" element={<AddStation />} />
+            <Route path="/join-us" element={<JoinUs />} /> {/* Add Join Us route */}
             <Route 
               path="/profile" 
               element={
@@ -43,6 +46,14 @@ const App = () => (
               } 
             />
             <Route path="/auth" element={<Auth />} />
+            <Route 
+              path="/edit-station/:id" 
+              element={
+                <ProtectedRoute>
+                  <EditStation />
+                </ProtectedRoute>
+              } 
+            />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

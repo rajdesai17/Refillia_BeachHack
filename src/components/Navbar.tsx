@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Droplets, Menu, X, LogOut, UserCircle, Map, Plus, ChevronDown, Shield } from "lucide-react";
@@ -49,6 +48,7 @@ const Navbar = () => {
     { name: "Home", path: "/" },
     { name: "Find Stations", path: "/find" },
     { name: "Add Station", path: "/add" },
+    { name: "Join Us", path: "/join-us" }, // Add Join Us link
     // Only show admin link for admin users
     ...(isAdmin ? [{ name: "Admin Dashboard", path: "/admin" }] : []),
   ];

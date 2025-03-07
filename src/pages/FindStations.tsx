@@ -67,7 +67,12 @@ const FindStations = () => {
       longitude: parseFloat(station.longitude.toString()),
       addedBy: station.added_by,
       createdAt: station.created_at,
-      updatedAt: station.updated_at
+      updatedAt: station.updated_at,
+      opening_time: station.opening_time || null,
+      closing_time: station.closing_time || null,
+      days: station.days || null,
+      water_level: station.water_level || null,
+      contact: station.contact || null
     }));
   }, []);
   
@@ -264,19 +269,46 @@ const FindStations = () => {
                       }}
                     >
                       <Popup>
-                        <div className="p-1">
-                          <h3 className="font-semibold text-gray-900">{station.name}</h3>
-                          <p className="text-sm text-gray-600 mb-2">{station.description}</p>
-                          {station.landmark && (
-                            <p className="text-xs text-gray-500 mb-2">
-                              <strong>Landmark:</strong> {station.landmark}
-                            </p>
+                        <div className="p-2 max-w-[300px]">
+                          <h3 className="font-semibold text-gray-900 text-lg">{station.name}</h3>
+                          <p className="text-sm text-gray-600 mb-3">{station.description}</p>
+                          
+                          {(station.opening_time || station.closing_time) && (
+                            <div className="text-xs text-gray-700 mb-2">
+                              <strong>Hours:</strong> {station.opening_time || 'N/A'} - {station.closing_time || 'N/A'}
+                            </div>
                           )}
-                          <div className="flex items-center mb-2">
+                          
+                          {station.days && (
+                            <div className="text-xs text-gray-700 mb-2">
+                              <strong>Days Open:</strong> {station.days}
+                            </div>
+                          )}
+                          
+                          {station.water_level && (
+                            <div className="text-xs text-gray-700 mb-2">
+                              <strong>Water Level:</strong> {station.water_level}
+                            </div>
+                          )}
+                          
+                          {station.contact && (
+                            <div className="text-xs text-gray-700 mb-2">
+                              <strong>Contact:</strong> {station.contact}
+                            </div>
+                          )}
+                          
+                          {station.landmark && (
+                            <div className="text-xs text-gray-700 mb-2">
+                              <strong>Landmark:</strong> {station.landmark}
+                            </div>
+                          )}
+                          
+                          <div className="flex items-center mb-3">
                             <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-800">
                               Verified
                             </span>
                           </div>
+                          
                           <div className="flex flex-col gap-2">
                             <Button
                               size="sm"

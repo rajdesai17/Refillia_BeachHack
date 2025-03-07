@@ -165,6 +165,37 @@ const AdminDashboard = () => {
     }));
   };
 
+  const fetchUnverifiedStations = async () => {
+    const { data, error } = await supabase
+      .from('refill_stations')
+      .select('*')
+      .eq('status', 'unverified')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching unverified requests:', error);
+      throw error;
+    }
+
+    return data;
+  };
+
+  const approveStation = async (stationId) => {
+    const { data, error } = await supabase
+      .from('refill_stations')
+      .update({ status: 'verified' })
+      .eq('id', stationId);
+
+    if (error) {
+      console.error('Error approving station:', error);
+      throw error;
+    }
+
+    // Refresh the list of stations
+    fetchUnverifiedStations();
+    fetchVerifiedStations();
+  };
+
   const { 
     data: pendingStations = [], 
     isLoading: isPendingLoading,
