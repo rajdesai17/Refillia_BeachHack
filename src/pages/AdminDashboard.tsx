@@ -18,18 +18,94 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { useAuth } from "@/contexts/AuthContext";
 
+interface UserProfile {
+  username: string;
+  email: string;
+}
+
+interface StationWithProfile extends RefillStation {
+  user_profiles: UserProfile;
+}
+
 const AdminDashboard = () => {
   const { isAdmin } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<StationWithProfile[]>([]);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [unverifiedRequests, setUnverifiedRequests] = useState([]);
   const queryClient = useQueryClient();
 
-  // Fetch all pending station requests
-  const fetchPendingStations = async () => {
+  // Handle search
+  const handleSearch = async (query: string) => {
+    setSearchQuery(query);
+    
+    if (query.trim() === "") {
+      setSearchResults([]);
+      return;
+    }
+
+    console.log('Searching for:', query);
+    
     const { data, error } = await supabase
       .from('refill_stations')
-      .select('*')
+      .select(`
+        *,
+        user_profiles(username, email)
+      `)
+      .ilike('name', `%${query}%`);
+
+    if (error) {
+      console.error('Error searching stations:', error);
+      return;
+    }
+
+    console.log('Search results:', data);
+    
+    // Transform the data to match StationWithProfile type
+    const transformedData = (data || []).map(station => ({
+      id: station.id,
+      name: station.name,
+      description: station.description,
+      landmark: station.landmark,
+      status: station.status as 'verified' | 'unverified' | 'reported',
+      latitude: parseFloat(station.latitude.toString()),
+      longitude: parseFloat(station.longitude.toString()),
+      addedBy: station.added_by,
+      createdAt: station.created_at,
+      updatedAt: station.updated_at,
+      user_profiles: {
+        username: station.user_profiles?.username || "Unknown",
+        email: station.user_profiles?.email || "Unknown"
+      }
+    }));
+
+    setSearchResults(transformedData);
+
+    // If there's exactly one match, zoom to its location
+    if (transformedData.length === 1) {
+      const station = transformedData[0];
+      openGoogleMaps(station.latitude, station.longitude);
+    }
+  };
+
+  // Debounced search
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      handleSearch(searchQuery);
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery]);
+
+  // Fetch all pending station requests
+  const fetchPendingStations = async () => {
+    console.log('Fetching pending stations...');
+    const { data, error } = await supabase
+      .from('refill_stations')
+      .select(`
+        *,
+        user_profiles(username, email)
+      `)
       .eq('status', 'unverified')
       .order('created_at', { ascending: false });
 
@@ -38,6 +114,7 @@ const AdminDashboard = () => {
       throw error;
     }
 
+    console.log('Pending stations:', data);
     return (data || []).map(station => ({
       id: station.id,
       name: station.name,
@@ -49,16 +126,20 @@ const AdminDashboard = () => {
       added_by: station.added_by,
       created_at: station.created_at,
       updated_at: station.updated_at,
-      username: "Unknown", // Default value since we can't join with user_profiles
-      userEmail: "Unknown" // Default value since we can't join with user_profiles
+      username: station.user_profiles?.username || "Unknown",
+      userEmail: station.user_profiles?.email || "Unknown"
     }));
   };
 
   // Fetch verified stations for reference
   const fetchVerifiedStations = async () => {
+    console.log('Fetching verified stations...');
     const { data, error } = await supabase
       .from('refill_stations')
-      .select('*')
+      .select(`
+        *,
+        user_profiles(username, email)
+      `)
       .eq('status', 'verified')
       .order('created_at', { ascending: false });
     
@@ -66,7 +147,8 @@ const AdminDashboard = () => {
       console.error('Error fetching verified stations:', error);
       throw error;
     }
-    
+
+    console.log('Verified stations:', data);
     return (data || []).map(station => ({
       id: station.id,
       name: station.name,
@@ -75,9 +157,9 @@ const AdminDashboard = () => {
       status: station.status as 'verified' | 'unverified' | 'reported',
       latitude: parseFloat(station.latitude.toString()),
       longitude: parseFloat(station.longitude.toString()),
-      added_by: station.added_by,
-      username: "Unknown", // Default value since we can't join with user_profiles
-      userEmail: "Unknown", // Default value since we can't join with user_profiles
+      addedBy: station.added_by,
+      userEmail: station.user_profiles?.email || "Unknown",
+      username: station.user_profiles?.username || "Unknown",
       createdAt: new Date(station.created_at).toLocaleString(),
       updatedAt: station.updated_at
     }));
@@ -145,19 +227,39 @@ const AdminDashboard = () => {
     setUpdatingId(stationId);
     
     try {
-      // Update the station status in Supabase
-      const { error } = await supabase
+      console.log(`Attempting to update station ${stationId} to status: ${newStatus}`);
+      
+      // First, verify the station exists
+      const { data: existingStation, error: fetchError } = await supabase
+        .from('refill_stations')
+        .select('*')
+        .eq('id', stationId)
+        .single();
+      
+      if (fetchError) {
+        console.error('Error fetching station:', fetchError);
+        throw new Error('Could not find the station to update');
+      }
+
+      console.log('Found station to update:', existingStation);
+
+      // Update the station status
+      const { data: updatedStation, error: updateError } = await supabase
         .from('refill_stations')
         .update({ 
           status: newStatus,
           updated_at: new Date().toISOString()
         })
-        .eq('id', stationId);
+        .eq('id', stationId)
+        .select()
+        .single();
       
-      if (error) {
-        console.error(`Error updating station status:`, error);
-        throw error;
+      if (updateError) {
+        console.error('Error updating station:', updateError);
+        throw updateError;
       }
+
+      console.log('Station updated successfully:', updatedStation);
       
       // Show success message
       toast({
@@ -165,19 +267,43 @@ const AdminDashboard = () => {
         description: `The refill station has been ${newStatus} successfully.`,
       });
       
-      // Manually refetch data to ensure UI is updated
-      await refetchPending();
-      await refetchVerified();
+      // Force refetch all data
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['pendingStations'] }),
+        queryClient.invalidateQueries({ queryKey: ['verifiedStations'] }),
+        queryClient.invalidateQueries({ queryKey: ['verifiedRefillStations'] })
+      ]);
+
+      // Wait for refetch to complete
+      await Promise.all([
+        refetchPending(),
+        refetchVerified()
+      ]);
+
+      // Double-check the update
+      const { data: verifyUpdate, error: verifyError } = await supabase
+        .from('refill_stations')
+        .select('*')
+        .eq('id', stationId)
+        .single();
       
-      // Force a reload of the verified stations in FindStations component
-      // by invalidating the cache for the 'verifiedRefillStations' query
-      queryClient.invalidateQueries({ queryKey: ['verifiedRefillStations'] });
+      if (verifyError) {
+        console.error('Error verifying update:', verifyError);
+      } else {
+        console.log('Verified update:', verifyUpdate);
+        if (verifyUpdate.status !== newStatus) {
+          console.error('Status mismatch after update:', {
+            expected: newStatus,
+            actual: verifyUpdate.status
+          });
+        }
+      }
       
     } catch (error) {
       console.error(`Error ${newStatus} station:`, error);
       toast({
         title: "Error",
-        description: `Failed to ${newStatus} the station. Please try again.`,
+        description: error instanceof Error ? error.message : `Failed to ${newStatus} the station. Please try again.`,
         variant: "destructive",
       });
     } finally {
@@ -187,7 +313,7 @@ const AdminDashboard = () => {
 
   const openGoogleMaps = (latitude: number, longitude: number) => {
     window.open(
-      `https://www.google.com/maps?q=${latitude},${longitude}`,
+      `https://www.google.com/maps?q=${latitude},${longitude}&z=15`,
       "_blank"
     );
   };
@@ -213,6 +339,44 @@ const AdminDashboard = () => {
                 />
               </div>
             </div>
+
+            {/* Show search results if any */}
+            {searchQuery && searchResults.length > 0 && (
+              <div className="mb-4 p-4 bg-white rounded-lg shadow">
+                <h3 className="text-sm font-medium mb-2">Search Results:</h3>
+                <div className="space-y-2">
+                  {searchResults.map((station) => (
+                    <div 
+                      key={station.id} 
+                      className="flex items-center justify-between p-2 hover:bg-gray-50 rounded-md"
+                    >
+                      <div>
+                        <p className="font-medium">{station.name}</p>
+                        <p className="text-sm text-gray-500">{station.landmark || 'No landmark'}</p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openGoogleMaps(
+                          parseFloat(station.latitude.toString()),
+                          parseFloat(station.longitude.toString())
+                        )}
+                      >
+                        <MapPin className="h-4 w-4 mr-1" />
+                        View on Map
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Show "No results found" message when search has no matches */}
+            {searchQuery && searchResults.length === 0 && (
+              <div className="mb-4 p-4 bg-gray-50 rounded-lg text-center">
+                <p className="text-gray-500">No stations found matching "{searchQuery}"</p>
+              </div>
+            )}
 
             {isPendingLoading ? (
               <div className="text-center py-10">

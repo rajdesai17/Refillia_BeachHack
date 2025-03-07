@@ -38,6 +38,7 @@ const defaultPosition: [number, number] = [20.5937, 78.9629];
 
 const FindStations = () => {
   const [userPosition, setUserPosition] = useState<[number, number] | null>(null);
+  const [showUserLocation, setShowUserLocation] = useState(false);
   const [selectedStation, setSelectedStation] = useState<RefillStation | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const { toast } = useToast();
@@ -156,12 +157,14 @@ const FindStations = () => {
   // Component to fly to user's location
   const FlyToUserLocation = () => {
     const map = useMap();
+    const [initialLoad, setInitialLoad] = useState(true);
     
     useEffect(() => {
-      if (userPosition) {
+      if (userPosition && initialLoad) {
         map.flyTo(userPosition, 13);
+        setInitialLoad(false);
       }
-    }, [map, userPosition]);
+    }, [map, userPosition, initialLoad]);
     
     return null;
   };
@@ -238,7 +241,7 @@ const FindStations = () => {
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                   />
                   
-                  {userPosition && (
+                  {showUserLocation && userPosition && (
                     <>
                       <FlyToUserLocation />
                       <Marker position={userPosition} icon={userIcon}>
@@ -321,6 +324,15 @@ const FindStations = () => {
             </div>
           </div>
           
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowUserLocation(!showUserLocation)}
+            className="mt-4"
+          >
+            {showUserLocation ? "Hide Current Location" : "Show Current Location"}
+          </Button>
+
           <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
               <MapPin className="h-10 w-10 text-refillia-blue mb-4" />

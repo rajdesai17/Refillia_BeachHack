@@ -14,6 +14,34 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 
+interface UserProfile {
+  username: string;
+  email: string;
+}
+
+interface DatabaseStation {
+  id: string;
+  name: string;
+  description: string;
+  landmark: string | null;
+  status: 'verified' | 'unverified' | 'reported';
+  latitude: number;
+  longitude: number;
+  added_by: string;
+  created_at: string;
+  updated_at: string;
+  user_profiles: UserProfile;
+}
+
+interface StationWithProfile extends DatabaseStation {
+  user_profiles: UserProfile;
+}
+
+interface PendingStation extends DatabaseStation {
+  username: string;
+  userEmail: string;
+}
+
 const Profile = () => {
   const { profile, signOut } = useAuth();
   const { toast } = useToast();
@@ -27,8 +55,12 @@ const Profile = () => {
       
       const { data, error } = await supabase
         .from('refill_stations')
-        .select(`*, user_profiles:added_by(username, email)`)
-        .eq('added_by', profile.id);
+        .select(`
+          *,
+          user_profiles!inner(username, email)
+        `)
+        .eq('added_by', profile.id)
+        .returns<StationWithProfile[]>();
         
       if (error) throw error;
       
@@ -37,11 +69,11 @@ const Profile = () => {
         name: station.name,
         description: station.description,
         landmark: station.landmark,
-        status: station.status as 'verified' | 'unverified' | 'reported',
+        status: station.status,
         latitude: parseFloat(station.latitude.toString()),
         longitude: parseFloat(station.longitude.toString()),
-        username: station.user_profiles?.username || "Unknown",
-        userEmail: station.user_profiles?.email || "Unknown",
+        username: station.user_profiles.username,
+        userEmail: station.user_profiles.email,
         createdAt: station.created_at,
         updatedAt: station.updated_at
       }));
@@ -91,10 +123,10 @@ const Profile = () => {
         description: "You have been signed out of your account.",
       });
       navigate("/");
-    } catch (error: any) {
+    } catch (error: Error | unknown) {
       toast({
         title: "Error signing out",
-        description: error.message,
+        description: error instanceof Error ? error.message : "An error occurred while signing out",
         variant: "destructive",
       });
     }
@@ -133,12 +165,16 @@ const Profile = () => {
     return titles[4];
   };
 
-  const fetchPendingStations = async () => {
+  const fetchPendingStations = async (): Promise<PendingStation[]> => {
     const { data, error } = await supabase
       .from('refill_stations')
-      .select(`*, user_profiles:added_by(username, email)`)
+      .select(`
+        *,
+        user_profiles!inner(username, email)
+      `)
       .eq('status', 'unverified')
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .returns<StationWithProfile[]>();
 
     if (error) {
       console.error('Error fetching unverified requests:', error);
@@ -147,8 +183,8 @@ const Profile = () => {
 
     return data.map(station => ({
       ...station,
-      username: station.user_profiles?.username || "Unknown",
-      userEmail: station.user_profiles?.email || "Unknown",
+      username: station.user_profiles.username,
+      userEmail: station.user_profiles.email,
     }));
   };
 
