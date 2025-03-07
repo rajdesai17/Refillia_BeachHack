@@ -27,7 +27,7 @@ const Profile = () => {
       
       const { data, error } = await supabase
         .from('refill_stations')
-        .select('*')
+        .select(`*, user_profiles:added_by(username, email)`)
         .eq('added_by', profile.id);
         
       if (error) throw error;
@@ -40,7 +40,8 @@ const Profile = () => {
         status: station.status as 'verified' | 'unverified' | 'reported',
         latitude: parseFloat(station.latitude.toString()),
         longitude: parseFloat(station.longitude.toString()),
-        addedBy: station.added_by,
+        username: station.user_profiles?.username || "Unknown",
+        userEmail: station.user_profiles?.email || "Unknown",
         createdAt: station.created_at,
         updatedAt: station.updated_at
       }));
@@ -130,6 +131,25 @@ const Profile = () => {
     if (level <= 3) return titles[2];
     if (level <= 4) return titles[3];
     return titles[4];
+  };
+
+  const fetchPendingStations = async () => {
+    const { data, error } = await supabase
+      .from('refill_stations')
+      .select(`*, user_profiles:added_by(username, email)`)
+      .eq('status', 'unverified')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching unverified requests:', error);
+      throw error;
+    }
+
+    return data.map(station => ({
+      ...station,
+      username: station.user_profiles?.username || "Unknown",
+      userEmail: station.user_profiles?.email || "Unknown",
+    }));
   };
 
   return (

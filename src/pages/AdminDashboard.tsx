@@ -16,39 +16,28 @@ import {
 import { toast } from "@/hooks/use-toast";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import { useAuth } from "@/contexts/AuthContext";
 
 const AdminDashboard = () => {
+  const { isAdmin } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [unverifiedRequests, setUnverifiedRequests] = useState([]);
 
   // Fetch all pending station requests
   const fetchPendingStations = async () => {
     const { data, error } = await supabase
       .from('refill_stations')
-      .select(`
-        *,
-        user_profiles:added_by(username, email)
-      `)
+      .select(`*, user_profiles:added_by(username, email)`)
       .eq('status', 'unverified')
       .order('created_at', { ascending: false });
-    
-    if (error) throw error;
-    
-    // Convert from snake_case to camelCase
-    return (data || []).map(station => ({
-      id: station.id,
-      name: station.name,
-      description: station.description,
-      landmark: station.landmark,
-      status: station.status as 'verified' | 'unverified' | 'reported',
-      latitude: parseFloat(station.latitude.toString()),
-      longitude: parseFloat(station.longitude.toString()),
-      addedBy: station.added_by,
-      userEmail: station.user_profiles?.email,
-      username: station.user_profiles?.username,
-      createdAt: new Date(station.created_at).toLocaleString(),
-      updatedAt: station.updated_at
-    }));
+
+    if (error) {
+      console.error('Error fetching unverified requests:', error);
+      throw error;
+    }
+
+    return data;
   };
 
   // Fetch verified stations for reference
@@ -57,7 +46,7 @@ const AdminDashboard = () => {
       .from('refill_stations')
       .select(`
         *,
-        user_profiles:added_by(username, email)
+        user_profiles(username, email)
       `)
       .eq('status', 'verified')
       .order('created_at', { ascending: false });
@@ -73,8 +62,8 @@ const AdminDashboard = () => {
       latitude: parseFloat(station.latitude.toString()),
       longitude: parseFloat(station.longitude.toString()),
       addedBy: station.added_by,
-      userEmail: station.user_profiles?.email,
-      username: station.user_profiles?.username,
+      userEmail: station.user_profiles.email,
+      username: station.user_profiles.username,
       createdAt: new Date(station.created_at).toLocaleString(),
       updatedAt: station.updated_at
     }));
@@ -97,6 +86,26 @@ const AdminDashboard = () => {
     queryKey: ['verifiedStations'],
     queryFn: fetchVerifiedStations
   });
+
+  useEffect(() => {
+    if (isAdmin) {
+      const fetchUnverifiedRequests = async () => {
+        const { data, error } = await supabase
+          .from('refill_stations')
+          .select('*')
+          .eq('status', 'unverified')
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          console.error('Error fetching unverified requests:', error);
+        } else {
+          setUnverifiedRequests(data);
+        }
+      };
+
+      fetchUnverifiedRequests();
+    }
+  }, [isAdmin]);
 
   // Filter stations based on search query
   const filteredPending = pendingStations.filter(station => 
