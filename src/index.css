@@ -1,4 +1,3 @@
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -99,5 +98,22 @@
   .map-container {
     height: 100%;
     width: 100%;
+  }
+
+  .card {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+  }
+
+  .card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+  }
+
+  .card-content {
+    text-align: center;
+  }
+
+  .card-content p {
+    margin: 0;
   }
 }

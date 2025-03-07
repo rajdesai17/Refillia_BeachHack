@@ -1,12 +1,38 @@
-
 import { useNavigate } from "react-router-dom";
 import { Droplets, MapPin, Plus, User, ThumbsUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client"; // Update this line
 
 const Index = () => {
   const navigate = useNavigate();
+  const [impactStats, setImpactStats] = useState({
+    totalBottlesSaved: 0,
+    totalRefills: 0
+  });
+
+  useEffect(() => {
+    const fetchImpactStats = async () => {
+      try {
+        const { data, error } = await supabase.rpc('get_global_impact_stats');
+        
+        if (error) throw error;
+        
+        if (data) {
+          setImpactStats({
+            totalBottlesSaved: data.total_bottles_saved || 0,
+            totalRefills: data.total_refills || 0
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching impact stats:', error);
+      }
+    };
+    
+    fetchImpactStats();
+  }, []);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -86,6 +112,29 @@ const Index = () => {
               <StatCard value="500+" label="Refill Stations" />
               <StatCard value="10,000+" label="Plastic Bottles Saved" />
               <StatCard value="1,000+" label="Active Users" />
+            </div>
+          </div>
+        </section>
+
+        {/* Community Impact */}
+        <section className="py-16 bg-refillia-lightBlue">
+          <div className="container mx-auto px-6">
+            <h2 className="text-3xl font-bold text-center mb-10">Our Community Impact</h2>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+              <div className="bg-white rounded-lg p-8 text-center shadow-md">
+                <div className="text-5xl font-bold text-refillia-blue mb-2">
+                  {impactStats.totalBottlesSaved.toLocaleString()}
+                </div>
+                <p className="text-xl text-gray-700">Plastic Bottles Saved</p>
+              </div>
+              
+              <div className="bg-white rounded-lg p-8 text-center shadow-md">
+                <div className="text-5xl font-bold text-refillia-green mb-2">
+                  {impactStats.totalRefills.toLocaleString()}
+                </div>
+                <p className="text-xl text-gray-700">Refills Completed</p>
+              </div>
             </div>
           </div>
         </section>

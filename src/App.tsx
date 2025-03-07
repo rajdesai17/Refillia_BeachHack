@@ -12,8 +12,10 @@ import AddStation from "./pages/AddStation";
 import Profile from "./pages/Profile";
 import Auth from "./pages/Auth";
 import AdminDashboard from "./pages/AdminDashboard";
-import JoinUs from "./pages/JoinUs"; // Import JoinUs page
-import EditStation from "./pages/EditStation"; // Import EditStation page
+import JoinUsInfo from "./pages/JoinUsInfo"; // Import the new info page
+import JoinUsForm from "./pages/JoinUsForm"; // Import the renamed form page
+import EditStation from "./pages/EditStation";
+import RedeemRewards from "./pages/RedeemRewards"; // Import the RedeemRewards component
 
 const queryClient = new QueryClient();
 
@@ -21,42 +23,29 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
       <TooltipProvider>
-        <Toaster />
-        <Sonner />
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Index />} />
-            <Route path="/find" element={<FindStations />} />
-            <Route path="/add" element={<AddStation />} />
-            <Route path="/join-us" element={<JoinUs />} /> {/* Add Join Us route */}
-            <Route 
-              path="/profile" 
-              element={
-                <ProtectedRoute>
-                  <Profile />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/admin" 
-              element={
-                <ProtectedRoute adminOnly>
-                  <AdminDashboard />
-                </ProtectedRoute>
-              } 
-            />
             <Route path="/auth" element={<Auth />} />
-            <Route 
-              path="/edit-station/:id" 
-              element={
-                <ProtectedRoute>
-                  <EditStation />
-                </ProtectedRoute>
-              } 
-            />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            <Route path="/find" element={<FindStations />} />
+            
+            {/* Protected routes */}
+            <Route path="/add" element={<ProtectedRoute><AddStation /></ProtectedRoute>} />
+            <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+            <Route path="/redeem-rewards" element={<ProtectedRoute><RedeemRewards /></ProtectedRoute>} /> {/* Add this line */}
+            
+            {/* Join Us routes */}
+            <Route path="/join-us" element={<JoinUsInfo />} />
+            <Route path="/join-us-form" element={<ProtectedRoute><JoinUsForm /></ProtectedRoute>} />
+            <Route path="/edit-station/:id" element={<ProtectedRoute><EditStation /></ProtectedRoute>} />
+            
+            {/* Admin routes */}
+            <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
+            
             <Route path="*" element={<NotFound />} />
           </Routes>
+          <Toaster />
+          <Sonner />
         </BrowserRouter>
       </TooltipProvider>
     </AuthProvider>

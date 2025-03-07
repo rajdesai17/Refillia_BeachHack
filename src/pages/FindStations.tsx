@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
-import { MapPin, Navigation, MessageCircle, ThumbsUp, ThumbsDown, Search } from "lucide-react";
+import { MapPin, Navigation, MessageCircle, ThumbsUp, ThumbsDown, Search, Check, X } from "lucide-react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { Button } from "@/components/ui/button";
@@ -11,10 +11,31 @@ import { useToast } from "@/hooks/use-toast";
 import { RefillStation } from "@/types";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { useAuth } from "@/contexts/AuthContext";
 
 // Fix for Leaflet marker icon
 import markerIcon from "leaflet/dist/images/marker-icon.png";
 import markerShadow from "leaflet/dist/images/marker-shadow.png";
+
+// Add this interface at the top of the file
+interface RefillStation {
+  id: string;
+  name: string;
+  description: string;
+  landmark: string | null;
+  status: 'verified' | 'unverified' | 'reported';
+  latitude: number;
+  longitude: number;
+  addedBy: string;
+  createdAt: string;
+  updatedAt: string;
+  opening_time?: string | null;
+  closing_time?: string | null;
+  days?: string | null;
+  water_level?: string | null;
+  contact?: string | null;
+}
 
 // Custom marker icon
 const customIcon = L.icon({
@@ -42,6 +63,11 @@ const FindStations = () => {
   const [selectedStation, setSelectedStation] = useState<RefillStation | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const { toast } = useToast();
+  
+  // Inside your FindStations component, add these state variables
+  const [showRefillDialog, setShowRefillDialog] = useState(false);
+  const [currentStationId, setCurrentStationId] = useState<string | null>(null);
+  const { profile } = useAuth();
   
   // Fetch stations from Supabase - only verified ones
   const fetchStations = useCallback(async () => {
@@ -73,7 +99,7 @@ const FindStations = () => {
       days: station.days || null,
       water_level: station.water_level || null,
       contact: station.contact || null
-    }));
+    } as RefillStation));
   }, []);
   
   const { 
@@ -114,283 +140,320 @@ const FindStations = () => {
     (station.landmark && station.landmark.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
-  const handleGetDirections = (latitude: number, longitude: number) => {
+  // Update the handleGetDirections function
+  const handleGetDirections = (stationId: string, latitude: number, longitude: number) => {
+    // Store the station ID in the database if user is logged in
+    if (profile?.id) {
+      // Store the pending refill in Supabase
+      supabase
+        .from('refill_activities')
+        .insert([{
+          user_id: profile.id,
+          station_id: stationId,
+          refilled: false,
+          points_earned: 0,
+          bottles_saved: 0
+        }])
+        .then(({ error }) => {
+          if (error) console.error('Error storing refill activity:', error);
+          
+          // Set session storage to trigger dialog when coming back to the app
+          // This is just for UX purposes, the actual tracking is in the database
+          sessionStorage.setItem('pendingRefillStation', stationId);
+          sessionStorage.setItem('pendingRefillTime', new Date().toISOString());
+        });
+    }
+    
+    // Open Google Maps directions
     window.open(
       `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`,
       "_blank"
     );
   };
 
-  const handleFeedback = async (stationId: string, isPositive: boolean) => {
-    try {
-      // Check if user is authenticated
-      const { data: { user } } = await supabase.auth.getUser();
+  // Add this useEffect to check if user is returning from getting directions
+  useEffect(() => {
+    const checkRefillStatus = async () => {
+      if (!profile?.id) return;
       
-      if (!user) {
-        toast({
-          title: "Authentication Required",
-          description: "Please sign in to provide feedback.",
-          variant: "destructive",
-        });
-        return;
+      const pendingStationId = sessionStorage.getItem('pendingRefillStation');
+      const pendingRefillTime = sessionStorage.getItem('pendingRefillTime');
+      
+      if (pendingStationId && pendingRefillTime) {
+        const refillTimestamp = new Date(pendingRefillTime).getTime();
+        const currentTime = new Date().getTime();
+        const minutesPassed = (currentTime - refillTimestamp) / (1000 * 60);
+        
+        // If less than 30 minutes have passed, show the dialog
+        if (minutesPassed < 30) {
+          // Check if this pending refill exists in the database
+          const { data, error } = await supabase
+            .from('refill_activities')
+            .select('*')
+            .eq('user_id', profile.id)
+            .eq('station_id', pendingStationId)
+            .eq('refilled', false)
+            .order('created_at', { ascending: false })
+            .limit(1);
+          
+          if (error) {
+            console.error('Error checking pending refill:', error);
+            return;
+          }
+          
+          if (data && data.length > 0) {
+            setCurrentStationId(pendingStationId);
+            setShowRefillDialog(true);
+          }
+          
+          // Remove from session storage either way
+          sessionStorage.removeItem('pendingRefillStation');
+          sessionStorage.removeItem('pendingRefillTime');
+        }
       }
+    };
+    
+    // Check after a short delay to ensure the page has fully loaded
+    const timer = setTimeout(checkRefillStatus, 1000);
+    return () => clearTimeout(timer);
+  }, [profile?.id]);
 
-      // Submit feedback to Supabase
-      const { error } = await supabase.from('feedback').insert([{
-        station_id: stationId,
-        user_id: user.id,
-        rating: isPositive ? 5 : 1,
-        comment: isPositive ? "Helpful" : "Issue reported"
-      }]);
-
+  // Add function to handle refill confirmation
+  const handleRefillConfirmation = async (didRefill: boolean) => {
+    if (!currentStationId || !profile?.id) {
+      setShowRefillDialog(false);
+      return;
+    }
+    
+    try {
+      const pointsToAdd = didRefill ? 10 : 1;
+      const bottlesToAdd = didRefill ? 1 : 0;
+      
+      // Update the refill activity in the database
+      const { error } = await supabase
+        .from('refill_activities')
+        .update({
+          refilled: didRefill,
+          points_earned: pointsToAdd,
+          bottles_saved: bottlesToAdd
+        })
+        .eq('user_id', profile.id)
+        .eq('station_id', currentStationId)
+        .eq('refilled', false);
+      
       if (error) throw error;
-
-      toast({
-        title: "Thank you for your feedback!",
-        description: `You ${isPositive ? "liked" : "reported an issue with"} this refill station.`,
+      
+      // Update the user profile stats
+      await supabase.rpc('update_user_stats', {
+        user_id_param: profile.id,
+        points_to_add: pointsToAdd,
+        bottles_to_add: bottlesToAdd
       });
+      
+      toast({
+        title: didRefill ? "Refill Completed!" : "Thank you for your feedback",
+        description: didRefill 
+          ? "You've earned 10 points and saved 1 plastic bottle! Keep it up!" 
+          : "You've earned 1 point for checking. Better luck next time!",
+      });
+      
+      // Refresh user profile to show updated points
+      queryClient.invalidateQueries(['userProfile', profile.id]);
+      
     } catch (error) {
-      console.error("Error submitting feedback:", error);
+      console.error("Error updating refill stats:", error);
       toast({
         title: "Error",
-        description: "Failed to submit feedback. Please try again.",
+        description: "Failed to update your refill stats. Please try again.",
         variant: "destructive",
       });
-    }
-  };
-
-  // Component to fly to user's location
-  const FlyToUserLocation = () => {
-    const map = useMap();
-    const [initialLoad, setInitialLoad] = useState(true);
-    
-    useEffect(() => {
-      if (userPosition && initialLoad) {
-        map.flyTo(userPosition, 13);
-        setInitialLoad(false);
-      }
-    }, [map, userPosition, initialLoad]);
-    
-    return null;
-  };
-
-  // Handle search submission
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (searchQuery.trim() === "") return;
-    
-    const foundStation = stations.find(station => 
-      station.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (station.landmark && station.landmark.toLowerCase().includes(searchQuery.toLowerCase()))
-    );
-    
-    if (foundStation) {
-      setSelectedStation(foundStation);
-      // This will trigger the map to fly to the station in MapContainer
-    } else {
-      toast({
-        title: "No results found",
-        description: `Could not find any stations matching "${searchQuery}"`,
-      });
+    } finally {
+      setShowRefillDialog(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="flex flex-col min-h-screen">
       <Navbar />
-      <main className="flex-grow pt-16">
+      <main className="flex-grow">
         <div className="container mx-auto px-4 py-8">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
-            <h1 className="text-3xl font-bold text-gray-900 mb-4 md:mb-0">Find Refill Stations</h1>
-            
-            <form onSubmit={handleSearch} className="w-full md:w-auto">
-              <div className="relative">
-                <Input
-                  type="text"
-                  placeholder="Search by name or landmark..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pr-10 w-full md:w-64"
-                />
-                <Button 
-                  type="submit" 
-                  size="sm" 
-                  variant="ghost" 
-                  className="absolute right-0 top-0 h-full"
-                >
-                  <Search className="h-4 w-4" />
-                </Button>
-              </div>
-            </form>
+          <div className="mb-8">
+            <h1 className="text-3xl font-semibold text-gray-900">Find Refill Stations</h1>
+            <p className="text-gray-600">Search for nearby refill stations and get directions.</p>
           </div>
-          
-          <div className="bg-white rounded-lg shadow-md overflow-hidden">
-            <div className="h-[70vh] relative">
-              {isLoading ? (
-                <div className="h-full flex items-center justify-center bg-gray-50">
-                  <div className="text-refillia-blue animate-pulse">Loading map...</div>
-                </div>
-              ) : error ? (
-                <div className="h-full flex items-center justify-center bg-gray-50">
-                  <div className="text-red-500">Error loading stations. Please try again.</div>
-                </div>
-              ) : (
-                <MapContainer
-                  center={userPosition || defaultPosition}
-                  zoom={13}
-                  className="h-full w-full"
-                >
-                  <TileLayer
-                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                  />
-                  
-                  {showUserLocation && userPosition && (
-                    <>
-                      <FlyToUserLocation />
-                      <Marker position={userPosition} icon={userIcon}>
-                        <Popup>
-                          <div className="p-1">
-                            <h3 className="font-semibold text-gray-900">Your Location</h3>
-                          </div>
-                        </Popup>
-                      </Marker>
-                    </>
-                  )}
+          <div className="mb-8">
+            <Input
+              type="text"
+              placeholder="Search for stations..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full"
+            />
+          </div>
+          <div className="relative">
+            {isLoading ? (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="text-gray-600">Loading...</div>
+              </div>
+            ) : error ? (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="text-red-600">Error loading stations.</div>
+              </div>
+            ) : (
+              <MapContainer
+                center={defaultPosition}
+                zoom={5}
+                style={{ height: "500px", width: "100%" }}
+              >
+                <TileLayer
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                />
 
-                  {filteredStations.map((station) => (
-                    <Marker
-                      key={station.id}
-                      position={[station.latitude, station.longitude]}
-                      icon={customIcon}
-                      eventHandlers={{
-                        click: () => setSelectedStation(station),
-                      }}
-                    >
-                      <Popup>
-                        <div className="p-2 max-w-[300px]">
-                          <h3 className="font-semibold text-gray-900 text-lg">{station.name}</h3>
-                          <p className="text-sm text-gray-600 mb-3">{station.description}</p>
-                          
-                          {(station.opening_time || station.closing_time) && (
-                            <div className="text-xs text-gray-700 mb-2">
-                              <strong>Hours:</strong> {station.opening_time || 'N/A'} - {station.closing_time || 'N/A'}
-                            </div>
-                          )}
-                          
-                          {station.days && (
-                            <div className="text-xs text-gray-700 mb-2">
-                              <strong>Days Open:</strong> {station.days}
-                            </div>
-                          )}
-                          
-                          {station.water_level && (
-                            <div className="text-xs text-gray-700 mb-2">
-                              <strong>Water Level:</strong> {station.water_level}
-                            </div>
-                          )}
-                          
-                          {station.contact && (
-                            <div className="text-xs text-gray-700 mb-2">
-                              <strong>Contact:</strong> {station.contact}
-                            </div>
-                          )}
-                          
-                          {station.landmark && (
-                            <div className="text-xs text-gray-700 mb-2">
-                              <strong>Landmark:</strong> {station.landmark}
-                            </div>
-                          )}
-                          
-                          <div className="flex items-center mb-3">
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-800">
-                              Verified
-                            </span>
+                {showUserLocation && userPosition && (
+                  <Marker position={userPosition} icon={userIcon}>
+                    <Popup>
+                      <div className="p-2">
+                        <h3 className="font-semibold text-gray-900">Your Location</h3>
+                        <p className="text-sm text-gray-600">You are here.</p>
+                      </div>
+                    </Popup>
+                  </Marker>
+                )}
+
+                {filteredStations.map((station) => (
+                  <Marker
+                    key={station.id}
+                    position={[station.latitude, station.longitude]}
+                    icon={customIcon}
+                    eventHandlers={{
+                      click: () => setSelectedStation(station),
+                    }}
+                  >
+                    <Popup>
+                      <div className="p-2 max-w-[300px]">
+                        <h3 className="font-semibold text-gray-900 text-lg">{station.name}</h3>
+                        <p className="text-sm text-gray-600 mb-3">{station.description}</p>
+                        
+                        {(station.opening_time || station.closing_time) && (
+                          <div className="text-xs text-gray-700 mb-2">
+                            <strong>Hours:</strong> {station.opening_time || 'N/A'} - {station.closing_time || 'N/A'}
                           </div>
-                          
-                          <div className="flex flex-col gap-2">
+                        )}
+                        
+                        {station.days && (
+                          <div className="text-xs text-gray-700 mb-2">
+                            <strong>Days Open:</strong> {station.days}
+                          </div>
+                        )}
+                        
+                        {station.water_level && (
+                          <div className="text-xs text-gray-700 mb-2">
+                            <strong>Water Level:</strong> {station.water_level}
+                          </div>
+                        )}
+                        
+                        {station.contact && (
+                          <div className="text-xs text-gray-700 mb-2">
+                            <strong>Contact:</strong> {station.contact}
+                          </div>
+                        )}
+                        
+                        {station.landmark && (
+                          <div className="text-xs text-gray-700 mb-2">
+                            <strong>Landmark:</strong> {station.landmark}
+                          </div>
+                        )}
+                        
+                        <div className="flex items-center mb-3">
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-800">
+                            Verified
+                          </span>
+                        </div>
+                        
+                        <div className="flex flex-col gap-2">
+                          <Button
+                            size="sm"
+                            className="bg-refillia-blue hover:bg-refillia-darkBlue w-full"
+                            onClick={() => handleGetDirections(station.id, station.latitude, station.longitude)}
+                          >
+                            <Navigation className="mr-1 h-4 w-4" />
+                            Get Directions
+                          </Button>
+                          <div className="flex justify-between gap-2">
                             <Button
                               size="sm"
-                              className="bg-refillia-blue hover:bg-refillia-darkBlue w-full"
-                              onClick={() => handleGetDirections(station.latitude, station.longitude)}
+                              variant="outline"
+                              className="flex-1 border-refillia-green text-refillia-green hover:bg-green-50"
+                              onClick={() => handleFeedback(station.id, true)}
                             >
-                              <Navigation className="mr-1 h-4 w-4" />
-                              Get Directions
+                              <ThumbsUp className="mr-1 h-4 w-4" />
+                              Helpful
                             </Button>
-                            <div className="flex justify-between gap-2">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="flex-1 border-refillia-green text-refillia-green hover:bg-green-50"
-                                onClick={() => handleFeedback(station.id, true)}
-                              >
-                                <ThumbsUp className="mr-1 h-4 w-4" />
-                                Helpful
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="flex-1 border-red-400 text-red-400 hover:bg-red-50"
-                                onClick={() => handleFeedback(station.id, false)}
-                              >
-                                <ThumbsDown className="mr-1 h-4 w-4" />
-                                Issue
-                              </Button>
-                            </div>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="flex-1 border-red-400 text-red-400 hover:bg-red-50"
+                              onClick={() => handleFeedback(station.id, false)}
+                            >
+                              <ThumbsDown className="mr-1 h-4 w-4" />
+                              Issue
+                            </Button>
                           </div>
                         </div>
-                      </Popup>
-                    </Marker>
-                  ))}
+                      </div>
+                    </Popup>
+                  </Marker>
+                ))}
 
-                  {/* Component to fly to selected station from search */}
-                  {selectedStation && (
-                    <FlyToSelectedStation 
-                      station={selectedStation} 
-                      setSelectedStation={setSelectedStation} 
-                    />
-                  )}
-                </MapContainer>
-              )}
-            </div>
-          </div>
-          
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowUserLocation(!showUserLocation)}
-            className="mt-4"
-          >
-            {showUserLocation ? "Hide Current Location" : "Show Current Location"}
-          </Button>
-
-          <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
-              <MapPin className="h-10 w-10 text-refillia-blue mb-4" />
-              <h3 className="text-xl font-semibold mb-2">Find Nearby Stations</h3>
-              <p className="text-gray-600">
-                Click on the map markers to view details about each verified refill station, including directions.
-              </p>
-            </div>
-            
-            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
-              <Navigation className="h-10 w-10 text-refillia-green mb-4" />
-              <h3 className="text-xl font-semibold mb-2">Get Directions</h3>
-              <p className="text-gray-600">
-                Use the "Get Directions" button to navigate to your chosen refill station using Google Maps.
-              </p>
-            </div>
-            
-            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
-              <MessageCircle className="h-10 w-10 text-refillia-orange mb-4" />
-              <h3 className="text-xl font-semibold mb-2">Give Feedback</h3>
-              <p className="text-gray-600">
-                Let others know about the condition of refill stations by providing feedback.
-              </p>
-            </div>
+                {/* Component to fly to selected station from search */}
+                {selectedStation && (
+                  <FlyToSelectedStation 
+                    station={selectedStation} 
+                    setSelectedStation={setSelectedStation} 
+                  />
+                )}
+              </MapContainer>
+            )}
           </div>
         </div>
+
+        {/* Refill Confirmation Dialog */}
+        <Dialog open={showRefillDialog} onOpenChange={setShowRefillDialog}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-xl">Did you refill your bottle?</DialogTitle>
+              <DialogDescription>
+                Let us know if you successfully refilled your water bottle at this location.
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="grid grid-cols-2 gap-4 py-4">
+              <Button 
+                className="flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700"
+                onClick={() => handleRefillConfirmation(true)}
+              >
+                <Check className="h-5 w-5" />
+                Yes, I did!
+              </Button>
+              
+              <Button 
+                variant="outline"
+                className="flex items-center justify-center gap-2"
+                onClick={() => handleRefillConfirmation(false)}
+              >
+                <X className="h-5 w-5" />
+                Not this time
+              </Button>
+            </div>
+            
+            <DialogFooter className="sm:justify-between">
+              <div className="text-sm text-gray-500">
+                Refilling earns you 10 points and counts as 1 plastic bottle saved!
+              </div>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </main>
       <Footer />
     </div>

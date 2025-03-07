@@ -27,6 +27,29 @@ interface StationWithProfile extends RefillStation {
   user_profiles: UserProfile;
 }
 
+// Update the interface to correctly type the joined data
+interface PendingStation {
+  id: string;
+  name: string;
+  description: string;
+  landmark: string | null;
+  status: 'verified' | 'unverified' | 'reported';
+  latitude: number;
+  longitude: number;
+  added_by: string;
+  created_at: string;
+  updated_at: string;
+  opening_time?: string | null;
+  closing_time?: string | null;
+  days?: string | null;
+  water_level?: string | null;
+  contact?: string | null;
+  user_profiles: {
+    username: string;
+    email: string;
+  };
+}
+
 const AdminDashboard = () => {
   const { isAdmin } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
@@ -98,7 +121,7 @@ const AdminDashboard = () => {
   }, [searchQuery]);
 
   // Fetch all pending station requests
-  const fetchPendingStations = async () => {
+  const fetchPendingStations = async (): Promise<PendingStation[]> => {
     console.log('Fetching pending stations...');
     const { data, error } = await supabase
       .from('refill_stations')
@@ -115,20 +138,7 @@ const AdminDashboard = () => {
     }
 
     console.log('Pending stations:', data);
-    return (data || []).map(station => ({
-      id: station.id,
-      name: station.name,
-      description: station.description,
-      landmark: station.landmark,
-      status: station.status as 'verified' | 'unverified' | 'reported',
-      latitude: parseFloat(station.latitude.toString()),
-      longitude: parseFloat(station.longitude.toString()),
-      added_by: station.added_by,
-      created_at: station.created_at,
-      updated_at: station.updated_at,
-      username: station.user_profiles?.username || "Unknown",
-      userEmail: station.user_profiles?.email || "Unknown"
-    }));
+    return (data || []) as PendingStation[];
   };
 
   // Fetch verified stations for reference
@@ -239,8 +249,8 @@ const AdminDashboard = () => {
     searchQuery === "" || 
     station.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     station.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    station.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    station.userEmail?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    station.user_profiles?.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    station.user_profiles?.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
     (station.landmark && station.landmark.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
@@ -441,8 +451,8 @@ const AdminDashboard = () => {
                           <TableCell>{station.landmark || "-"}</TableCell>
                           <TableCell>
                             <div className="flex flex-col">
-                              <span>{station.username || "Unknown"}</span>
-                              <span className="text-xs text-gray-500">{station.userEmail}</span>
+                              <span>{station.user_profiles?.username || "Unknown User"}</span>
+                              <span className="text-xs text-gray-500">{station.user_profiles?.email || "No Email"}</span>
                             </div>
                           </TableCell>
                           <TableCell>{station.created_at ? new Date(station.created_at).toLocaleString() : "-"}</TableCell>

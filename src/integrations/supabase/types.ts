@@ -54,8 +54,13 @@ export type Database = {
           latitude: number
           longitude: number
           name: string
-          status: string
+          status: 'verified' | 'unverified' | 'reported'
           updated_at: string | null
+          opening_time?: string | null
+          closing_time?: string | null
+          days?: string | null
+          water_level?: string | null
+          contact?: string | null
         }
         Insert: {
           added_by?: string | null

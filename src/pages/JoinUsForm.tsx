@@ -21,7 +21,7 @@ const customIcon = new L.Icon({
   popupAnchor: [0, -35],
 });
 
-const JoinUs = () => {
+const JoinUsForm = () => {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [landmark, setLandmark] = useState('');
@@ -335,4 +335,4 @@ const JoinUs = () => {
   );
 };
 
-export default JoinUs;
+export default JoinUsForm;

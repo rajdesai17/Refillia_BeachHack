@@ -11,10 +11,29 @@ import Footer from "@/components/Footer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
 
+// Add this interface at the top of the file
+interface StationData {
+  id: string;
+  name: string;
+  description: string;
+  landmark: string | null;
+  status: string;
+  latitude: number;
+  longitude: number;
+  added_by: string;
+  created_at: string;
+  updated_at: string;
+  contact?: string | null;
+  opening_time?: string | null;
+  closing_time?: string | null;
+  days?: string | null;
+  water_level?: string | null;
+}
+
 const EditStation = () => {
   const { id } = useParams();
   const { profile } = useAuth();
-  const [station, setStation] = useState(null);
+  const [station, setStation] = useState<StationData | null>(null);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [landmark, setLandmark] = useState('');
@@ -62,7 +81,7 @@ const EditStation = () => {
           return;
         }
 
-        setStation(data);
+        setStation(data as StationData);
         setName(data.name || '');
         setDescription(data.description || '');
         setLandmark(data.landmark || '');

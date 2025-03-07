@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { User, MapPin, MessageSquare, Award, Edit, LogOut, Plus } from "lucide-react";
+import { User, MapPin, MessageSquare, Award, Edit, LogOut, Plus, Droplets, Droplet, Gift } from "lucide-react"; // Update this line
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -15,8 +15,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 
 interface UserProfile {
+  id: string;
   username: string;
   email: string;
+  points: number;
+  stationsAdded: number;
+  feedbackGiven: number;
+  createdAt: string;
+  bottlesSaved: number; // Add this field
 }
 
 interface DatabaseStation {
@@ -35,6 +41,7 @@ interface DatabaseStation {
 
 interface StationWithProfile extends DatabaseStation {
   user_profiles: UserProfile;
+  opening_time?: string | null; // Add this line
 }
 
 interface PendingStation extends DatabaseStation {
@@ -76,8 +83,8 @@ const Profile = () => {
         userEmail: station.user_profiles.email,
         createdAt: station.created_at,
         updatedAt: station.updated_at,
-        addedBy: station.added_by,  // Make sure this maps the database field
-        opening_time: station.opening_time  // Add this line
+        opening_time: station.opening_time, // Add this
+        addedBy: station.added_by
       }));
     },
     enabled: !!profile?.id
@@ -264,6 +271,14 @@ const Profile = () => {
                       >
                         <LogOut className="h-4 w-4 mr-2" />
                         Sign Out
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        className="w-full justify-start text-green-500 hover:text-green-600 hover:bg-green-50"
+                        onClick={() => navigate('/redeem-rewards')}
+                      >
+                        <Gift className="h-4 w-4 mr-2" />
+                        Redeem Rewards
                       </Button>
                     </div>
                   </div>
@@ -518,6 +533,40 @@ const Profile = () => {
                         </CardContent>
                       </Card>
                     </div>
+                    <div className="mb-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+  <Card className="shadow-lg">
+    <CardContent className="flex flex-col items-center pt-6">
+      <Award className="h-12 w-12 text-amber-400 mb-4" />
+      <p className="text-4xl font-bold text-gray-900">{profile?.points || 0}</p>
+      <p className="text-lg text-gray-600">Total Points</p>
+    </CardContent>
+  </Card>
+  
+  <Card className="shadow-lg">
+    <CardContent className="flex flex-col items-center pt-6">
+      <Droplets className="h-12 w-12 text-refillia-blue mb-4" />
+      <p className="text-4xl font-bold text-gray-900">{profile?.bottlesSaved || 0}</p>
+      <p className="text-lg text-gray-600">Plastic Bottles Saved</p>
+    </CardContent>
+  </Card>
+  
+  <Card className="shadow-lg">
+    <CardContent className="flex flex-col items-center pt-6">
+      <MapPin className="h-12 w-12 text-refillia-green mb-4" />
+      <p className="text-4xl font-bold text-gray-900">{userStations.length}</p>
+      <p className="text-lg text-gray-600">Stations Added</p>
+    </CardContent>
+  </Card>
+  
+  <Card className="shadow-lg">
+    <CardContent className="flex flex-col items-center pt-6">
+      <MessageSquare className="h-12 w-12 text-refillia-orange mb-4" />
+      <p className="text-4xl font-bold text-gray-900">{profile?.feedbackGiven || 0}</p>
+      <p className="text-lg text-gray-600">Feedback Given</p>
+    </CardContent>
+  </Card>
+</div>
+
                   </TabsContent>
                 </div>
               </Tabs>
