@@ -1,4 +1,3 @@
-
 import { useState, useRef, useEffect } from "react";
 import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
 import { MapPin, FileText, AlertTriangle } from "lucide-react";
@@ -107,9 +106,8 @@ const AddStation = () => {
     setIsSubmitting(true);
 
     try {
-      // Check if user is authenticated
       const { data: { user } } = await supabase.auth.getUser();
-      
+
       if (!user) {
         toast({
           title: "Authentication Required",
@@ -120,7 +118,6 @@ const AddStation = () => {
         return;
       }
 
-      // Submit to Supabase
       const { data, error } = await supabase.from('refill_stations').insert([{
         name,
         description,
@@ -138,14 +135,12 @@ const AddStation = () => {
         description: "Refill station added successfully. Thank you for your contribution!",
       });
 
-      // Reset form
       setName("");
       setDescription("");
       setLandmark("");
       setPosition(null);
       setFormErrors({ name: "", description: "", position: "" });
-      
-      // Navigate to find stations page
+
       setTimeout(() => {
         navigate('/find');
       }, 2000);

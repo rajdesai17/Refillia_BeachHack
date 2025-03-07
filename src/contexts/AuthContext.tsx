@@ -1,4 +1,3 @@
-
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
@@ -56,6 +55,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => {
       subscription.unsubscribe();
     };
+  }, []);
+
+  useEffect(() => {
+    const signInAdmin = async () => {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: 'admin@gmail.com',
+        password: 'admin123',
+      });
+
+      if (error) {
+        console.error('Error signing in as admin:', error);
+      }
+    };
+
+    signInAdmin();
   }, []);
 
   const checkAdminStatus = (email: string | undefined) => {

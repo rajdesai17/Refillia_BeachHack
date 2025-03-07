@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Check, X, MapPin, Search } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
