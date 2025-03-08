@@ -30,9 +30,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (session?.user) {
         fetchUserProfile(session.user.id);
         checkAdminStatus(session.user.email);
-      } else {
-        setLoading(false);
       }
+      setLoading(false);
     });
 
     // Listen for auth changes
@@ -47,8 +46,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         } else {
           setProfile(null);
           setIsAdmin(false);
-          setLoading(false);
         }
+        setLoading(false);
       }
     );
 
@@ -57,26 +56,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
   }, []);
 
-  useEffect(() => {
-    const signInAdmin = async () => {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: 'admin@gmail.com',
-        password: 'admin123',
-      });
+  const checkAdminStatus = async (email: string | undefined) => {
+    if (!email) {
+      setIsAdmin(false);
+      return;
+    }
 
-      if (error) {
-        console.error('Error signing in as admin:', error);
-      }
-    };
+    try {
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select('role')
+        .eq('email', email)
+        .single();
 
-    signInAdmin();
-  }, []);
-
-  const checkAdminStatus = (email: string | undefined) => {
-    // Check if the user is an admin
-    if (email === 'admin@gmail.com') {
-      setIsAdmin(true);
-    } else {
+      if (error) throw error;
+      setIsAdmin(data?.role === 'admin');
+    } catch (error) {
+      console.error('Error checking admin status:', error);
       setIsAdmin(false);
     }
   };
