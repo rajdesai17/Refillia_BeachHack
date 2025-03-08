@@ -98,18 +98,6 @@ const Index = () => {
           </div>
         </section>
 
-        {/* Impact Stats */}
-        <section className="py-16 px-6 bg-refillia-lightBlue text-center">
-          <div className="container mx-auto">
-            <h2 className="text-4xl font-bold text-gray-900 mb-12 animate-fade-in">Our Impact</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              <StatCard value="500+" label="Refill Stations" />
-              <StatCard value="10,000+" label="Plastic Bottles Saved" />
-              <StatCard value="1,000+" label="Active Users" />
-            </div>
-          </div>
-        </section>
-
         {/* Community Impact */}
         <section className="py-16 bg-refillia-lightBlue text-center">
           <div className="container mx-auto px-6">
