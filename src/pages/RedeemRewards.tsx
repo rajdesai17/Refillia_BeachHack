@@ -8,25 +8,44 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 
+// Update the Reward interface to include image
 interface Reward {
   id: string;
   name: string;
   points: number;
   description: string;
+  image: string;
 }
 
+// Update the constantReward to include the image path
 const constantReward: Reward = {
   id: "1",
   name: "Steel Water Bottle",
   points: 500,
-  description: "A high-quality steel water bottle to keep you hydrated."
+  description: "A high-quality steel water bottle to keep you hydrated.",
+  image: "/img.png" // Assuming the image is in the public folder
 };
 
 const RedeemRewards = () => {
   const [showAddressForm, setShowAddressForm] = useState(false);
-  const [address, setAddress] = useState("");
-  const { profile } = useAuth();
+  const [address, setAddress] = useState(""); // Add this line for address state
+  const { profile } = useAuth(); // Add this line to get profile from auth context
   const { toast } = useToast();
+
+  // Ensure profile exists before accessing it
+  if (!profile) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <Navbar />
+        <main className="flex-grow pt-16">
+          <div className="container mx-auto px-4 py-8">
+            <h1 className="text-3xl font-bold text-gray-900 mb-6">Loading...</h1>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
   const handleRedeem = async (reward: Reward) => {
     if (!profile?.id) return;
@@ -80,9 +99,18 @@ const RedeemRewards = () => {
         <div className="container mx-auto px-4 py-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-6">Redeem Rewards</h1>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <Card key={constantReward.id} className="shadow-lg">
-              <CardHeader>
-                <CardTitle className="text-xl">{constantReward.name}</CardTitle>
+            <Card key={constantReward.id} className="shadow-lg flex flex-col">
+              <CardHeader className="p-0">
+                <div className="relative w-full aspect-square">
+                  <img
+                    src={constantReward.image}
+                    alt={constantReward.name}
+                    className="w-full h-full object-contain p-4"
+                  />
+                </div>
+                <div className="p-6">
+                  <CardTitle className="text-xl">{constantReward.name}</CardTitle>
+                </div>
               </CardHeader>
               <CardContent>
                 <p className="text-gray-600 mb-4">{constantReward.description}</p>

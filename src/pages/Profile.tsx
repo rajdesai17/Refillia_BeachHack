@@ -466,16 +466,7 @@ const Profile = () => {
                               <p>{formatDate(profile.createdAt)}</p>
                             </div>
                             <Separator />
-                            <div>
-                              <h4 className="text-sm font-medium mb-2">Total Water Saved</h4>
-                              <p className="text-2xl font-bold text-refillia-blue">
-                                ~{profile.stationsAdded * 50} liters
-                              </p>
-                              <p className="text-xs text-muted-foreground mt-1">
-                                Based on estimated usage of your added stations
-                              </p>
-                            </div>
-                            <Separator />
+                            
                             <div>
                               <h4 className="text-sm font-medium mb-2">Plastic Bottles Saved</h4>
                               <p className="text-2xl font-bold text-refillia-green">

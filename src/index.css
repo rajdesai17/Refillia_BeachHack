@@ -98,6 +98,7 @@
   .map-container {
     height: 100%;
     width: 100%;
+    transition: all 0.3s ease-in-out;
   }
 
   .card {
@@ -116,4 +117,254 @@
   .card-content p {
     margin: 0;
   }
+
+  .map-container-wrapper {
+    @apply relative rounded-2xl overflow-hidden border-2 border-blue-100 shadow-lg bg-white;
+    @apply transition-all duration-300 ease-in-out;
+  }
+
+  .map-container-wrapper:hover {
+    @apply shadow-xl border-blue-200;
+  }
+
+  /* Responsive height adjustments */
+  @media (max-width: 768px) {
+    .map-container-wrapper {
+      height: 70vh;
+    }
+  }
+
+  @media (min-width: 769px) {
+    .map-container-wrapper {
+      height: 600px;
+    }
+  }
+
+  .profile-card {
+    @apply transform transition-all duration-300 hover:scale-[1.01];
+  }
+
+  .stat-card {
+    @apply bg-white rounded-xl p-6 shadow-md hover:shadow-lg 
+           transition-all duration-300 transform hover:-translate-y-1;
+  }
+
+  .achievement-icon {
+    @apply transition-transform duration-300 hover:scale-110;
+  }
+}
+
+/* Add these animations */
+@keyframes marker-bounce-in {
+  0% {
+    opacity: 0;
+    transform: translateY(-200px);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(30px);
+  }
+  80% { transform: translateY(-10px); }
+  100% { transform: translateY(0); }
+}
+
+.leaflet-marker-icon {
+  animation: marker-bounce-in 0.5s ease-out;
+  transition: all 0.3s ease-out;
+}
+
+.leaflet-marker-icon:hover {
+  transform: scale(1.1);
+}
+
+/* Enhance popup animations */
+.leaflet-popup {
+  animation: popup-fade-in 0.3s ease-out;
+}
+
+@keyframes popup-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Smooth zoom transitions */
+.leaflet-fade-anim .leaflet-tile,
+.leaflet-zoom-anim .leaflet-zoom-animated {
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Glassmorphism effects */
+.glass {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+/* Active nav link style */
+.nav-link-active {
+  position: relative;
+}
+
+.nav-link-active::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(90deg, var(--refillia-blue), transparent);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes wave {
+  0% { transform: translateX(0) translateZ(0) scaleY(1); }
+  50% { transform: translateX(-25%) translateZ(0) scaleY(0.55); }
+  100% { transform: translateX(-50%) translateZ(0) scaleY(1); }
+}
+
+.waves-bg {
+  background: url('/wave.svg') repeat-x;
+  position: absolute;
+  width: 200%;
+  height: 100%;
+  animation: wave 15s infinite linear;
+  transform-origin: center bottom;
+  opacity: 0.1;
+}
+
+.animate-fade-in {
+  animation: fadeIn 1s ease-out;
+}
+
+.animate-fade-in-delay {
+  animation: fadeIn 1s ease-out 0.3s both;
+}
+
+/* Profile animations */
+@keyframes slideInFromBottom {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-in {
+  animation: slideInFromBottom 0.5s ease-out;
+}
+
+/* Progress bar animation */
+@keyframes progressFill {
+  from { width: 0%; }
+  to { width: var(--value); }
+}
+
+.progress-animate {
+  animation: progressFill 1s ease-out;
+}
+
+/* Custom marker styling */
+.custom-marker {
+  display: flex;
+  justify-content: center;
+}
+
+.marker-pin {
+  width: 20px;
+  height: 20px;
+  border-radius: 50% 50% 50% 0;
+  background: #3b82f6;
+  position: relative;
+  transform: rotate(-45deg);
+  animation: marker-drop 0.5s ease-out;
+}
+
+.marker-pin::after {
+  content: '';
+  width: 14px;
+  height: 14px;
+  background: white;
+  position: absolute;
+  border-radius: 50%;
+  top: 3px;
+  left: 3px;
+}
+
+@keyframes marker-drop {
+  0% {
+    transform: rotate(-45deg) translateY(-20px);
+    opacity: 0;
+  }
+  100% {
+    transform: rotate(-45deg) translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Simple marker styling */
+.simple-marker {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  animation: marker-appear 0.3s ease-out;
+}
+
+.marker-dot {
+  width: 16px;
+  height: 16px;
+  background: #3b82f6;
+  border: 2px solid white;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  transition: transform 0.2s ease;
+}
+
+.user-location-marker {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.user-location-dot {
+  width: 16px;
+  height: 16px;
+  background: #22c55e;
+  border: 2px solid white;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* Smooth animation for marker placement */
+@keyframes marker-appear {
+  from {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.simple-marker {
+  animation: marker-appear 0.3s ease-out;
 }

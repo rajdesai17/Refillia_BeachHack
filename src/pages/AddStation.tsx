@@ -14,11 +14,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 
 // Custom marker icon
-const customIcon = new L.Icon({
-  iconUrl: "https://cdn-icons-png.flaticon.com/512/3448/3448636.png",
-  iconSize: [35, 35],
-  iconAnchor: [17, 35],
-  popupAnchor: [0, -35],
+const customIcon = L.divIcon({
+  className: 'simple-marker',
+  html: `<div class="marker-dot"></div>`,
+  iconSize: [16, 16],
+  iconAnchor: [8, 8],
+  popupAnchor: [0, -8]
 });
 
 const AddStation = () => {
@@ -178,19 +179,14 @@ const AddStation = () => {
       }
     });
 
-    useEffect(() => {
-      if (userLocation && mapRef.current) {
-        mapRef.current.flyTo(userLocation, 15);
-      }
-    }, [userLocation]);
-
     return userLocation ? (
       <Marker 
         position={userLocation} 
-        icon={new L.Icon({
-          iconUrl: "https://cdn-icons-png.flaticon.com/512/3710/3710297.png",
-          iconSize: [25, 25],
-          iconAnchor: [12, 25],
+        icon={L.divIcon({
+          className: 'user-location-marker',
+          html: `<div class="user-location-dot"></div>`,
+          iconSize: [16, 16],
+          iconAnchor: [8, 8]
         })}
       />
     ) : null;
