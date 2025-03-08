@@ -13,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useAuth } from "@/contexts/AuthContext";
+import { useQueryClient } from "@tanstack/react-query";
 
 // Fix for Leaflet marker icon
 import markerIcon from "leaflet/dist/images/marker-icon.png";
@@ -69,6 +70,7 @@ const FindStations = () => {
   const [showRefillDialog, setShowRefillDialog] = useState(false);
   const [currentStationId, setCurrentStationId] = useState<string | null>(null);
   const { profile } = useAuth();
+  const queryClient = useQueryClient();
   
   // Fetch stations from Supabase - only verified ones
   const fetchStations = useCallback(async () => {
@@ -286,6 +288,80 @@ const FindStations = () => {
     }
   };
 
+  // Add this function inside the FindStations component, before the return statement
+
+const handleFeedback = async (stationId: string, isHelpful: boolean) => {
+  if (!profile?.id) {
+    toast({
+      title: "Login Required",
+      description: "Please sign in to provide feedback.",
+      variant: "destructive",
+    });
+    return;
+  }
+
+  try {
+    // First check if user has already given feedback
+    const { data: existingFeedback } = await supabase
+      .from('feedback')
+      .select('*')
+      .eq('user_id', profile.id)
+      .eq('station_id', stationId)
+      .single();
+
+    if (existingFeedback) {
+      toast({
+        title: "Already Submitted",
+        description: "You have already provided feedback for this station.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Add feedback to the database
+    const { error: feedbackError } = await supabase
+      .from('feedback')
+      .insert([{
+        user_id: profile.id,
+        station_id: stationId,
+        rating: isHelpful ? 5 : 1,
+        comment: isHelpful ? "Station is helpful" : "Issue reported with station",
+      }]);
+
+    if (feedbackError) throw feedbackError;
+
+    // Update user profile directly
+    const { error: updateError } = await supabase
+      .from('user_profiles')
+      .update({
+        points: profile.points + 10,
+        feedback_given: (profile.feedbackGiven || 0) + 1
+      })
+      .eq('id', profile.id);
+
+    if (updateError) throw updateError;
+
+    // Show success message
+    toast({
+      title: isHelpful ? "Thank You!" : "Feedback Received",
+      description: isHelpful 
+        ? "Thanks for marking this station as helpful! You earned 10 points." 
+        : "Thank you for reporting this issue. We'll look into it.",
+    });
+
+    // Refresh user profile
+    queryClient.invalidateQueries(['userProfile', profile.id]);
+
+  } catch (error) {
+    console.error("Error submitting feedback:", error);
+    toast({
+      title: "Error",
+      description: "Failed to submit feedback. Please try again.",
+      variant: "destructive",
+    });
+  }
+};
+
   // Update the handleSearch function
   const handleSearch = (query: string) => {
     setSearchQuery(query);
@@ -442,10 +518,28 @@ const FindStations = () => {
                       position={[station.latitude, station.longitude]}
                       icon={customIcon}
                       eventHandlers={{
-                        click: () => setSelectedStation(station),
+                        click: () => {
+                          setSelectedStation(station);
+                          if (mapRef.current) {
+                            // Center the map on the marker with offset for popup
+                            mapRef.current.flyTo(
+                              [station.latitude + 0.001, station.longitude],
+                              16,
+                              {
+                                duration: 1,
+                                easeLinearity: 0.25
+                              }
+                            );
+                          }
+                        },
                       }}
                     >
-                      <Popup>
+                      <Popup
+                        className="station-popup"
+                        maxWidth={300}
+                        autoPan={true}
+                        autoPanPadding={[50, 50]}
+                      >
                         <div className="p-2 max-w-[300px]">
                           <h3 className="font-semibold text-gray-900 text-lg">{station.name}</h3>
                           <p className="text-sm text-gray-600 mb-3">{station.description}</p>

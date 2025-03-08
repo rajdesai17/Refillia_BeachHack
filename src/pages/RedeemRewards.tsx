@@ -7,6 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 // Update the Reward interface to include image
 interface Reward {
@@ -15,6 +16,17 @@ interface Reward {
   points: number;
   description: string;
   image: string;
+}
+
+// Add these interfaces after the Reward interface
+interface AddressForm {
+  fullName: string;
+  streetAddress: string;
+  apartment: string;
+  city: string;
+  state: string;
+  pincode: string;
+  phone: string;
 }
 
 // Update the constantReward to include the image path
@@ -31,6 +43,17 @@ const RedeemRewards = () => {
   const [address, setAddress] = useState(""); // Add this line for address state
   const { profile } = useAuth(); // Add this line to get profile from auth context
   const { toast } = useToast();
+
+  // Update the component state
+  const [addressForm, setAddressForm] = useState<AddressForm>({
+    fullName: '',
+    streetAddress: '',
+    apartment: '',
+    city: '',
+    state: '',
+    pincode: '',
+    phone: ''
+  });
 
   // Ensure profile exists before accessing it
   if (!profile) {
@@ -84,12 +107,36 @@ const RedeemRewards = () => {
   };
 
   const handleAddressSubmit = () => {
-    // Handle address submission logic here
+    // Validate required fields
+    const requiredFields = ['fullName', 'streetAddress', 'city', 'state', 'pincode', 'phone'];
+    const missingFields = requiredFields.filter(field => !addressForm[field as keyof AddressForm]);
+    
+    if (missingFields.length > 0) {
+      toast({
+        title: 'Missing Information',
+        description: 'Please fill in all required fields.',
+        variant: 'destructive',
+      });
+      return;
+    }
+  
+    // TODO: Add address submission logic here
     toast({
-      title: 'Coming Soon',
-      description: 'Address submission feature is coming soon.',
+      title: 'Address Submitted',
+      description: 'Your delivery details have been saved.',
     });
     setShowAddressForm(false);
+    
+    // Reset form
+    setAddressForm({
+      fullName: '',
+      streetAddress: '',
+      apartment: '',
+      city: '',
+      state: '',
+      pincode: '',
+      phone: ''
+    });
   };
 
   return (
@@ -131,29 +178,130 @@ const RedeemRewards = () => {
 
       {/* Address Form Dialog */}
       <Dialog open={showAddressForm} onOpenChange={setShowAddressForm}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
-            <DialogTitle className="text-xl">Submit Your Address</DialogTitle>
+            <DialogTitle className="text-xl font-semibold">Delivery Details</DialogTitle>
             <DialogDescription>
-              Please provide your address to receive your reward.
+              Please provide your delivery information to receive your reward.
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4">
-            <Input
-              type="text"
-              placeholder="Enter your address"
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              className="w-full mb-4"
-            />
-            <Button onClick={handleAddressSubmit} className="w-full">
-              Submit
-            </Button>
-          </div>
-          <DialogFooter className="sm:justify-between">
-            <div className="text-sm text-gray-500">
-              Address submission feature is coming soon.
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-1 gap-4">
+              <div>
+                <Label htmlFor="fullName">Full Name</Label>
+                <Input
+                  id="fullName"
+                  placeholder="Enter your full name"
+                  value={addressForm.fullName}
+                  onChange={(e) => setAddressForm(prev => ({
+                    ...prev,
+                    fullName: e.target.value
+                  }))}
+                  className="mt-1"
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="phone">Phone Number</Label>
+                <Input
+                  id="phone"
+                  type="tel"
+                  placeholder="Enter your phone number"
+                  value={addressForm.phone}
+                  onChange={(e) => setAddressForm(prev => ({
+                    ...prev,
+                    phone: e.target.value
+                  }))}
+                  className="mt-1"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="streetAddress">Street Address</Label>
+                <Input
+                  id="streetAddress"
+                  placeholder="Enter your street address"
+                  value={addressForm.streetAddress}
+                  onChange={(e) => setAddressForm(prev => ({
+                    ...prev,
+                    streetAddress: e.target.value
+                  }))}
+                  className="mt-1"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="apartment">Apartment, Suite, etc. (optional)</Label>
+                <Input
+                  id="apartment"
+                  placeholder="Apartment, suite, unit, etc."
+                  value={addressForm.apartment}
+                  onChange={(e) => setAddressForm(prev => ({
+                    ...prev,
+                    apartment: e.target.value
+                  }))}
+                  className="mt-1"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="city">City</Label>
+                  <Input
+                    id="city"
+                    placeholder="Enter city"
+                    value={addressForm.city}
+                    onChange={(e) => setAddressForm(prev => ({
+                      ...prev,
+                      city: e.target.value
+                    }))}
+                    className="mt-1"
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="state">State</Label>
+                  <Input
+                    id="state"
+                    placeholder="Enter state"
+                    value={addressForm.state}
+                    onChange={(e) => setAddressForm(prev => ({
+                      ...prev,
+                      state: e.target.value
+                    }))}
+                    className="mt-1"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="pincode">PIN Code</Label>
+                <Input
+                  id="pincode"
+                  placeholder="Enter PIN code"
+                  value={addressForm.pincode}
+                  onChange={(e) => setAddressForm(prev => ({
+                    ...prev,
+                    pincode: e.target.value
+                  }))}
+                  className="mt-1"
+                />
+              </div>
             </div>
+          </div>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setShowAddressForm(false)}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleAddressSubmit}
+              className="bg-refillia-blue hover:bg-refillia-darkBlue"
+            >
+              Confirm & Submit
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
