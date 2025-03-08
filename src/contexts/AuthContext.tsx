@@ -23,6 +23,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
+    // Clear any existing session on initial load
+    supabase.auth.signOut();
+    setSession(null);
+    setUser(null);
+    setProfile(null);
+    setIsAdmin(false);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
@@ -30,9 +40,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (session?.user) {
         fetchUserProfile(session.user.id);
         checkAdminStatus(session.user.email);
-      } else {
-        setLoading(false);
       }
+      setLoading(false);
     });
 
     // Listen for auth changes
@@ -47,8 +56,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         } else {
           setProfile(null);
           setIsAdmin(false);
-          setLoading(false);
         }
+        setLoading(false);
       }
     );
 
@@ -57,26 +66,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
   }, []);
 
-  useEffect(() => {
-    const signInAdmin = async () => {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: 'admin@gmail.com',
-        password: 'admin123',
-      });
+  const checkAdminStatus = async (email: string | undefined) => {
+    if (!email) {
+      setIsAdmin(false);
+      return;
+    }
 
-      if (error) {
-        console.error('Error signing in as admin:', error);
-      }
-    };
+    try {
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select('role')
+        .eq('email', email)
+        .single();
 
-    signInAdmin();
-  }, []);
-
-  const checkAdminStatus = (email: string | undefined) => {
-    // Check if the user is an admin
-    if (email === 'admin@gmail.com') {
-      setIsAdmin(true);
-    } else {
+      if (error) throw error;
+      setIsAdmin(data?.role === 'admin');
+    } catch (error) {
+      console.error('Error checking admin status:', error);
       setIsAdmin(false);
     }
   };
@@ -113,7 +119,28 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    try {
+      // First clear all local data
+      setSession(null);
+      setUser(null);
+      setProfile(null);
+      setIsAdmin(false);
+      
+      // Clear any stored auth data
+      localStorage.clear();
+      sessionStorage.clear();
+      
+      // Then sign out from Supabase
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+
+      // Navigate to home page
+      window.location.href = '/';
+      
+    } catch (error) {
+      console.error('Error signing out:', error);
+      throw error;
+    }
   };
 
   return (

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Check, X, MapPin, Search } from "lucide-react";
+import { Check, X, MapPin, Search, Edit, Trash2 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { RefillStation } from "@/types";
@@ -17,6 +17,17 @@ import { toast } from "@/hooks/use-toast";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { useAuth } from "@/contexts/AuthContext";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useNavigate } from "react-router-dom";
 
 interface UserProfile {
   username: string;
@@ -56,7 +67,9 @@ const AdminDashboard = () => {
   const [searchResults, setSearchResults] = useState<StationWithProfile[]>([]);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [unverifiedRequests, setUnverifiedRequests] = useState([]);
+  const [stationToDelete, setStationToDelete] = useState<string | null>(null);
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   // Handle search
   const handleSearch = async (query: string) => {
@@ -141,37 +154,50 @@ const AdminDashboard = () => {
     return (data || []) as PendingStation[];
   };
 
-  // Fetch verified stations for reference
+  // Update the fetchVerifiedStations function
   const fetchVerifiedStations = async () => {
     console.log('Fetching verified stations...');
+    
     const { data, error } = await supabase
       .from('refill_stations')
       .select(`
-        *,
-        user_profiles(username, email)
+        id,
+        name,
+        description,
+        landmark,
+        status,
+        latitude,
+        longitude,
+        added_by,
+        created_at,
+        updated_at,
+        user_profiles (
+          username,
+          email
+        )
       `)
       .eq('status', 'verified')
-      .order('created_at', { ascending: false });
+      .order('updated_at', { ascending: false })
+      .limit(50); // Limit results for better performance
     
     if (error) {
       console.error('Error fetching verified stations:', error);
       throw error;
     }
-
-    console.log('Verified stations:', data);
+  
     return (data || []).map(station => ({
       id: station.id,
       name: station.name,
       description: station.description,
       landmark: station.landmark,
-      status: station.status as 'verified' | 'unverified' | 'reported',
-      latitude: parseFloat(station.latitude.toString()),
-      longitude: parseFloat(station.longitude.toString()),
+      status: station.status,
+      latitude: station.latitude,
+      longitude: station.longitude,
       addedBy: station.added_by,
-      userEmail: station.user_profiles?.email || "Unknown",
+      createdAt: station.created_at,
+      updatedAt: station.updated_at,
       username: station.user_profiles?.username || "Unknown",
-      createdAt: new Date(station.created_at).toLocaleString(),
-      updatedAt: station.updated_at
+      userEmail: station.user_profiles?.email || "No Email"
     }));
   };
 
@@ -206,22 +232,32 @@ const AdminDashboard = () => {
     fetchVerifiedStations();
   };
 
-  const { 
-    data: pendingStations = [], 
+  const {
+    data: pendingStations = [],
     isLoading: isPendingLoading,
     refetch: refetchPending,
   } = useQuery({
     queryKey: ['pendingStations'],
-    queryFn: fetchPendingStations
+    queryFn: fetchPendingStations,
+    staleTime: 0,
+    cacheTime: 0,
+    refetchOnMount: true,
+    refetchOnWindowFocus: true
   });
 
   const { 
     data: verifiedStations = [], 
     isLoading: isVerifiedLoading,
-    refetch: refetchVerified,
+    refetch: refetchVerified
   } = useQuery({
     queryKey: ['verifiedStations'],
-    queryFn: fetchVerifiedStations
+    queryFn: fetchVerifiedStations,
+    staleTime: 0,
+    cacheTime: 0,
+    refetchInterval: 0,
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
+    retry: 2
   });
 
   useEffect(() => {
@@ -349,6 +385,55 @@ const AdminDashboard = () => {
       });
     } finally {
       setUpdatingId(null);
+    }
+  };
+
+  // Update the handleDelete function
+  const handleDelete = async (stationId: string) => {
+    try {
+      setUpdatingId(stationId);
+
+      // Delete related data first
+      await Promise.all([
+        supabase.from('feedback').delete().eq('station_id', stationId),
+        supabase.from('refill_activities').delete().eq('station_id', stationId)
+      ]);
+
+      // Delete the station itself
+      const { error: stationError } = await supabase
+        .from('refill_stations')
+        .delete()
+        .eq('id', stationId);
+
+      if (stationError) throw stationError;
+
+      // Immediately update local state
+      setVerifiedStations(prev => prev.filter(s => s.id !== stationId));
+      setSearchResults(prev => prev.filter(s => s.id !== stationId));
+
+      // Force reset all query caches
+      queryClient.resetQueries();
+      
+      // Reload the page after a short delay
+      toast({
+        title: "Success",
+        description: "Station has been permanently deleted. Refreshing data...",
+      });
+
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+
+    } catch (error) {
+      console.error('Error deleting station:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete the station. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setUpdatingId(null);
+      setStationToDelete(null);
     }
   };
 
@@ -504,9 +589,11 @@ const AdminDashboard = () => {
             <h2 className="text-xl font-semibold mb-4">Verified Stations</h2>
             
             {isVerifiedLoading ? (
-              <div className="text-center py-10">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-refillia-blue mx-auto"></div>
-                <p className="mt-4 text-gray-600">Loading verified stations...</p>
+              <div className="bg-white rounded-lg p-8">
+                <div className="flex items-center justify-center space-x-4">
+                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-refillia-blue"></div>
+                  <p className="text-gray-600">Loading verified stations...</p>
+                </div>
               </div>
             ) : filteredVerified.length === 0 ? (
               <div className="bg-gray-50 rounded-lg p-8 text-center">
@@ -523,7 +610,7 @@ const AdminDashboard = () => {
                         <TableHead>Landmark</TableHead>
                         <TableHead>Added By</TableHead>
                         <TableHead>Verification Date</TableHead>
-                        <TableHead>Location</TableHead>
+                        <TableHead>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -540,15 +627,38 @@ const AdminDashboard = () => {
                           </TableCell>
                           <TableCell>{station.updatedAt ? new Date(station.updatedAt).toLocaleString() : "-"}</TableCell>
                           <TableCell>
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
-                              onClick={() => openGoogleMaps(station.latitude, station.longitude)}
-                              className="flex items-center gap-1"
-                            >
-                              <MapPin className="h-3 w-3" />
-                              View
-                            </Button>
+                            <div className="flex gap-2">
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                onClick={() => openGoogleMaps(station.latitude, station.longitude)}
+                                className="flex items-center gap-1"
+                              >
+                                <MapPin className="h-3 w-3" />
+                                View
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="border-blue-400 text-blue-500 hover:bg-blue-50"
+                                onClick={() => navigate(`/admin/edit-station/${station.id}`)}
+                              >
+                                <Edit className="h-4 w-4 mr-1" />
+                                Edit
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="border-red-400 text-red-500 hover:bg-red-50"
+                                onClick={() => {
+                                  setStationToDelete(station.id);
+                                }}
+                                disabled={updatingId === station.id}
+                              >
+                                <Trash2 className="h-4 w-4 mr-1" />
+                                Delete
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -561,6 +671,44 @@ const AdminDashboard = () => {
         </div>
       </main>
       <Footer />
+
+      <AlertDialog open={!!stationToDelete} onOpenChange={() => setStationToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-4">
+                <span>
+                  This action cannot be undone. This will permanently delete the refill station
+                  and remove all associated data including:
+                </span>
+                <ul className="list-disc pl-4 space-y-1">
+                  <li>User feedback and ratings</li>
+                  <li>Refill activities and statistics</li>
+                  <li>Location data and details</li>
+                </ul>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={!!updatingId}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-500 hover:bg-red-600 text-white"
+              onClick={() => stationToDelete && handleDelete(stationToDelete)}
+              disabled={!!updatingId}
+            >
+              {updatingId === stationToDelete ? (
+                <div className="flex items-center gap-2">
+                  <span className="animate-spin">⏳</span>
+                  <span>Deleting...</span>
+                </div>
+              ) : (
+                'Delete Station'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

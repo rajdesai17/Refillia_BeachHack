@@ -12,11 +12,13 @@ import AddStation from "./pages/AddStation";
 import Profile from "./pages/Profile";
 import Auth from "./pages/Auth";
 import AdminDashboard from "./pages/AdminDashboard";
-import JoinUsInfo from "./pages/JoinUsInfo";
-import JoinUsForm from "./pages/JoinUsForm";
+import JoinUsInfo from "./pages/JoinUsInfo"; // Import the new info page
+import JoinUsForm from "./pages/JoinUsForm"; // Import the renamed form page
 import EditStation from "./pages/EditStation";
-import RedeemRewards from "./pages/RedeemRewards";
+import RedeemRewards from "./pages/RedeemRewards"; // Import the RedeemRewards component
+import AdminEditStation from "@/pages/AdminEditStation"; // Add this import
 import SponsorPage from "./pages/SponsorPage"; // Import the new SponsorPage component
+
 
 const queryClient = new QueryClient();
 
@@ -43,6 +45,14 @@ const App = () => (
             
             {/* Admin routes */}
             <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
+            <Route 
+              path="/admin/edit-station/:id" 
+              element={
+                <ProtectedRoute>
+                  <AdminEditStation />
+                </ProtectedRoute>
+              } 
+            /> {/* Add this route inside your Routes component */}
             
             <Route path="*" element={<NotFound />} />
           </Routes>

@@ -28,12 +28,25 @@ const Navbar = () => {
 
   const handleSignOut = async () => {
     try {
+      setIsOpen(false); // Close mobile menu if open
+      
       await signOut();
+      
+      // Toast will be shown on redirect
+    } catch (error) {
+      console.error("Error signing out:", error);
       toast({
-        title: "Signed out successfully",
-        description: "You have been signed out of your account.",
+        title: "Error",
+        description: "Failed to sign out. Please try again.",
+        variant: "destructive",
       });
-      navigate("/");
+    }
+  };
+
+  const handleMobileSignOut = async () => {
+    try {
+      setIsOpen(false);
+      await signOut();
     } catch (error) {
       console.error("Error signing out:", error);
       toast({
@@ -186,10 +199,7 @@ const Navbar = () => {
                     </Link>
                   )}
                   <button
-                    onClick={() => {
-                      handleSignOut();
-                      setIsOpen(false);
-                    }}
+                    onClick={handleMobileSignOut}
                     className="w-full text-left px-3 py-2 rounded-md text-sm font-medium text-red-500 hover:bg-red-50 flex items-center"
                   >
                     <LogOut className="h-5 w-5 mr-2" />
