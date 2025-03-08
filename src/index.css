@@ -239,12 +239,21 @@
 }
 
 .waves-bg {
-  background: url('/wave.svg') repeat-x;
+  background: linear-gradient(
+    -45deg, 
+    rgba(14, 165, 233, 0.1) 25%, 
+    transparent 25%, 
+    transparent 50%, 
+    rgba(14, 165, 233, 0.1) 50%, 
+    rgba(14, 165, 233, 0.1) 75%, 
+    transparent 75%, 
+    transparent
+  );
+  background-size: 20px 20px;
   position: absolute;
   width: 200%;
   height: 100%;
   animation: wave 15s infinite linear;
-  transform-origin: center bottom;
   opacity: 0.1;
 }
 
