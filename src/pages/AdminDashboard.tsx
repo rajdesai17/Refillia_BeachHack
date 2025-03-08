@@ -232,13 +232,17 @@ const AdminDashboard = () => {
     fetchVerifiedStations();
   };
 
-  const { 
-    data: pendingStations = [], 
+  const {
+    data: pendingStations = [],
     isLoading: isPendingLoading,
     refetch: refetchPending,
   } = useQuery({
     queryKey: ['pendingStations'],
-    queryFn: fetchPendingStations
+    queryFn: fetchPendingStations,
+    staleTime: 0,
+    cacheTime: 0,
+    refetchOnMount: true,
+    refetchOnWindowFocus: true
   });
 
   const { 
@@ -248,13 +252,12 @@ const AdminDashboard = () => {
   } = useQuery({
     queryKey: ['verifiedStations'],
     queryFn: fetchVerifiedStations,
-    staleTime: 30000, // Data stays fresh for 30 seconds
-    cacheTime: 60000, // Cache data for 1 minute
-    refetchInterval: 30000, // Refetch every 30 seconds
+    staleTime: 0,
+    cacheTime: 0,
+    refetchInterval: 0,
     refetchOnMount: true,
-    refetchOnWindowFocus: false, // Disable refetch on window focus
-    retry: 1, // Only retry once on failure
-    refetchOnReconnect: false // Disable refetch on reconnect
+    refetchOnWindowFocus: true,
+    retry: 2
   });
 
   useEffect(() => {
@@ -385,62 +388,41 @@ const AdminDashboard = () => {
     }
   };
 
-  // Update the handleDelete function in AdminDashboard.tsx
+  // Update the handleDelete function
   const handleDelete = async (stationId: string) => {
     try {
       setUpdatingId(stationId);
 
-      // 1. Delete associated data first
+      // Delete related data first
       await Promise.all([
-        // Delete feedback
-        supabase
-          .from('feedback')
-          .delete()
-          .match({ station_id: stationId }),
-        
-        // Delete refill activities  
-        supabase
-          .from('refill_activities')
-          .delete()
-          .match({ station_id: stationId })
+        supabase.from('feedback').delete().eq('station_id', stationId),
+        supabase.from('refill_activities').delete().eq('station_id', stationId)
       ]);
 
-      // 2. Delete the station itself
+      // Delete the station itself
       const { error: stationError } = await supabase
         .from('refill_stations')
         .delete()
-        .match({ id: stationId });
+        .eq('id', stationId);
 
       if (stationError) throw stationError;
 
-      // 3. Immediately update local state
-      const updatedStations = verifiedStations.filter(station => station.id !== stationId);
-      
-      // 4. Update all query caches
-      queryClient.setQueryData(['verifiedStations'], updatedStations);
-      queryClient.setQueryData(['mapStations'], (old: any[] = []) => 
-        old.filter(s => s.id !== stationId)
-      );
-      queryClient.setQueryData(['allStations'], (old: any[] = []) => 
-        old.filter(s => s.id !== stationId)
-      );
-
-      // 5. Force invalidate and refetch all queries
-      await queryClient.invalidateQueries();
-      await Promise.all([
-        refetchPending(),
-        refetchVerified()
-      ]);
-
-      // 6. Clear search results if present
+      // Immediately update local state
+      setVerifiedStations(prev => prev.filter(s => s.id !== stationId));
       setSearchResults(prev => prev.filter(s => s.id !== stationId));
 
+      // Force reset all query caches
+      queryClient.resetQueries();
+      
+      // Reload the page after a short delay
       toast({
         title: "Success",
-        description: "Station has been permanently deleted"
+        description: "Station has been permanently deleted. Refreshing data...",
       });
 
-      setStationToDelete(null);
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
 
     } catch (error) {
       console.error('Error deleting station:', error);
@@ -451,6 +433,7 @@ const AdminDashboard = () => {
       });
     } finally {
       setUpdatingId(null);
+      setStationToDelete(null);
     }
   };
 
