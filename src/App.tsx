@@ -12,10 +12,11 @@ import AddStation from "./pages/AddStation";
 import Profile from "./pages/Profile";
 import Auth from "./pages/Auth";
 import AdminDashboard from "./pages/AdminDashboard";
-import JoinUsInfo from "./pages/JoinUsInfo"; // Import the new info page
-import JoinUsForm from "./pages/JoinUsForm"; // Import the renamed form page
+import JoinUsInfo from "./pages/JoinUsInfo";
+import JoinUsForm from "./pages/JoinUsForm";
 import EditStation from "./pages/EditStation";
-import RedeemRewards from "./pages/RedeemRewards"; // Import the RedeemRewards component
+import RedeemRewards from "./pages/RedeemRewards";
+import SponsorPage from "./pages/SponsorPage"; // Import the new SponsorPage component
 
 const queryClient = new QueryClient();
 
@@ -28,11 +29,12 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/find" element={<FindStations />} />
+            <Route path="/sponsor" element={<SponsorPage />} />
             
             {/* Protected routes */}
             <Route path="/add" element={<ProtectedRoute><AddStation /></ProtectedRoute>} />
             <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-            <Route path="/redeem-rewards" element={<ProtectedRoute><RedeemRewards /></ProtectedRoute>} /> {/* Add this line */}
+            <Route path="/redeem-rewards" element={<ProtectedRoute><RedeemRewards /></ProtectedRoute>} />
             
             {/* Join Us routes */}
             <Route path="/join-us" element={<JoinUsInfo />} />

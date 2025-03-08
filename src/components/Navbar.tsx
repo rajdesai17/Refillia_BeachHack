@@ -48,7 +48,8 @@ const Navbar = () => {
     { name: "Home", path: "/" },
     { name: "Find Stations", path: "/find" },
     { name: "Add Station", path: "/add" },
-    { name: "Join Us", path: "/join-us" }, // Add Join Us link
+    { name: "Sponsor", path: "/sponsor" },
+    { name: "Join Us", path: "/join-us" },
     // Only show admin link for admin users
     ...(isAdmin ? [{ name: "Admin Dashboard", path: "/admin" }] : []),
   ];
